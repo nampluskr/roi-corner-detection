@@ -1,0 +1,165 @@
+# CLAUDE.md
+
+이 파일은 `roi-corner-detection` 프로젝트에서 작업할 때 따르는 공통 지침이다.
+
+## 1. 프로젝트 개요
+
+평면 사각형 객체의 4개 코너 좌표를 검출하는 5개 방법론(direct, heatmap, hybrid, line, doc)을
+공유 데이터/평가 파이프라인 위에서 구현하고 성능을 비교하는 단일 PyTorch 프로젝트이다.
+방법론 목록과 우선순위, 제약(F1-F5)은 `README.md`를 참조한다.
+
+## 2. 통합 원칙
+
+이 프로젝트는 task 축이 "코너 좌표 검출" 하나뿐이고, 방법론(5개) 차이는 raw 출력 형태
+자체(좌표/heatmap/세그멘테이션 마스크/직선)가 다르다. 따라서 다음 두 축으로 공통성을 확보한다.
+
+- **인터페이스 공통**: 모든 방법론은 `src/models/base/`의 5종 추상 클래스(`BaseModel`,
+  `BasePreprocessor`, `BasePostprocessor`, `BaseLoss`, `BaseWrapper`)를 상속한다.
+- **실행 공통**: `src/core/trainer.py`의 `Trainer`, `src/core/evaluator.py`의 `Evaluator`,
+  `src/core/predictor.py`의 `Predictor`는 방법론에 상관없이 `Wrapper` 인스턴스 하나만 받아
+  동일하게 구동된다.
+- **출력 공통**: 모든 방법론의 `postprocessor.py`는 raw 출력을 표준 코너 좌표 `(N, 4, 2)`로
+  변환하며, 그 이후 `pred_corners.csv` 스키마(`image_id,x1,y1,x2,y2,x3,y3,x4,y4`, 정규화 [0,1])와
+  `src/metrics/metrics.py`의 공통 메트릭 적용은 방법론 이름조차 몰라도 되는 완전 공통 로직이다.
+- **CLI 공통**: `scripts/train.py --method <name>` 등 CLI 인수와 동작 형태 동일
+
+방법론별로 다른 부분은 `src/models/<name>/`(model/preprocessor/postprocessor/loss/wrapper)
+5개 파일로 한정한다. 공유 계층(`src/core/`, `src/data/`, `src/metrics/`, `src/utils/`)에는
+방법론 이름을 하드코딩하지 않는다.
+
+## 3. 공통 파일 구조
+
+```text
+data/
+docs/
+experiments/
+notebooks/
+outputs/
+scripts/
+├── benchmark.py
+├── config.py
+├── evaluate.py
+├── fix_corner_order.py
+├── predict.py
+├── prepare_data.py
+└── train.py
+src/
+├── core/
+│   ├── evaluator.py
+│   ├── factory.py
+│   ├── predictor.py
+│   └── trainer.py
+├── data/
+│   ├── dataloader.py
+│   ├── dataset.py
+│   ├── labelme.py
+│   ├── midv2020.py
+│   ├── smartdoc.py
+│   ├── synthetic.py
+│   └── transforms.py
+├── metrics/
+│   └── metrics.py
+├── models/
+│   ├── base/
+│   │   ├── base_loss.py
+│   │   ├── base_model.py
+│   │   ├── base_postprocessor.py
+│   │   ├── base_preprocessor.py
+│   │   └── base_wrapper.py
+│   ├── direct/    (loss.py, model.py, postprocessor.py, preprocessor.py, wrapper.py)
+│   ├── doc/       (동일 5개 파일)
+│   ├── heatmap/   (동일 5개 파일)
+│   ├── hybrid/    (동일 5개 파일)
+│   └── line/      (동일 5개 파일)
+└── utils/
+    ├── geometry.py
+    └── homography.py
+```
+
+`configs/` 폴더는 두지 않는다. 하이퍼파라미터는 `scripts/config.py`의 `DEFAULTS` 딕셔너리로
+관리한다 (MNIST 프로젝트와 동일).
+
+## 4. 방법론별 전용 파일
+
+각 방법론 폴더(`direct/doc/heatmap/hybrid/line`)는 항상 **같은 이름의 파일 5개**
+(`model.py`, `preprocessor.py`, `postprocessor.py`, `loss.py`, `wrapper.py`)를 가지며,
+내용만 방법론별로 다르다. raw 출력 형태와 후처리 방식 차이는 다음과 같다.
+
+| 방법론 | raw 출력 | 후처리 |
+|---|---|---|
+| `direct` | (N, 8) 좌표 logits | sigmoid + reshape |
+| `heatmap` | (N, 4, H, W) heatmap | soft-argmax |
+| `hybrid` | (N, 1, H, W) 세그멘테이션 마스크 | Canny + Hough + cornerSubPix |
+| `line` | 직선 세그먼트 | 직선 그룹화 + 교점 계산 |
+| `doc` | (N, 8) 좌표 logits (사전학습 기반) | sigmoid + reshape |
+
+방법론 전용이면서 다른 방법론이 쓰지 않는 보조 연산(예: `line`의 직선 교점 계산)은
+공유 `src/utils/`로 승격하지 않고 해당 방법론 폴더 내부(`postprocessor.py` 등)에 둔다.
+다른 방법론에서도 필요해지는 시점에 `src/utils/`로 승격한다.
+
+## 5. 작업 규칙
+
+- 코드 작성 시 `README.md`에 정의된 스켈레톤과 시그니처를 반드시 적용한다. `README.md`를 SSOT로 삼는다.
+- 새 방법론을 추가할 때는 `src/models/<name>/`에 5개 파일(model/preprocessor/postprocessor/loss/wrapper)만
+  추가하고 `src/core/`, `src/data/`, `src/metrics/`, `src/utils/`는 수정하지 않는다
+  (필요 시 `factory.py`의 `get_wrapper` dispatch 분기만 추가).
+- `src/models/base/`의 5종 추상 클래스(공개 시그니처)를 변경하면 이미 구현된 모든 방법론에 동시 반영한다.
+- `scripts/` CLI 인수와 동작이 달라지면 전체 방법론에 동일하게 적용되도록 구현한다.
+- 방법론 구현 순서는 `PLAN.md`의 Phase 순서(direct -> heatmap -> hybrid -> line -> doc)를 따른다.
+
+## 6. 문서 및 코드 작성 규칙
+
+- 마크다운 문서와 코드 파일에 em dash, 유니코드 화살표(->, <- 등), 이모지를 사용하지 않는다.
+- 키보드에서 직접 입력 가능한 ASCII 문자만 사용한다. 화살표는 -> 또는 => 를 사용한다.
+- 단, 폴더 구조 트리에서는 ├, ─, │, └ 문자를 사용한다.
+- 폴더 구조와 파일 리스트는 탐색기와 동일한 형태/순서를 유지한다: 폴더 알파벳순 -> 파일 알파벳순.
+
+### 6.1 노트북 작성 규칙
+
+- Jupyter 노트북 셀의 `source` 배열에서 마지막 줄은 `\n`으로 끝내지 않는다.
+- 즉, `source` 배열의 마지막 원소는 개행 문자 없이 끝나야 한다.
+
+## 7. 레거시 참조 코드
+
+이 프로젝트는 아래 두 프로젝트만 참조하여 작성한다. 참조만 하고 복사/심링크하지 않으며,
+전체 재구현을 원칙으로 한다. 이후 모든 문서와 대화에서 두 프로젝트는 다음 명칭으로 지칭한다.
+
+| 명칭 | 경로 | 참조 목적 |
+|---|---|---|
+| **레거시 프로젝트** (legacy 프로젝트) | `../../99_deprecated/260622_roi-direct-regression` | 도메인 로직 참조 - 코너 기하 연산, 데이터 파이프라인, 방법론 설계(A-J), 통합 계획 |
+| **MNIST 프로젝트** | `../260626_mnist-from-scratch` | 구조/컨벤션 참조 - 폴더 구조, SSOT README/CLAUDE.md 작성 방식, 코딩 규칙 |
+
+레거시 프로젝트 세부 참조 경로:
+
+| 경로 | 참조 대상 |
+|---|---|
+| `<레거시 프로젝트>/src/{utils,data}` | 코너 기하 연산, CSV 기반 Dataset/Transform 설계 |
+| `<레거시 프로젝트>/docs/plans/roi-detection-calm-papert.md` | 방법론 통합 구조 설계 원안 |
+| `<레거시 프로젝트>/_project/sources/P3-methodology-catalog.md` | 방법론 A-J 상세 카탈로그 |
+| `<레거시 프로젝트>/_project/sources/P5-metrics-and-schema.md` | 메트릭 카탈로그 (Polygon IoU, MCD, MaxCD, Reprojection Error 등) |
+| `<레거시 프로젝트>/_legacy/quad_regression/src` | Trainer(`engine.py`)/Loss 구현 패턴 |
+
+MNIST 프로젝트 세부 참조 대상:
+
+| 경로 | 참조 대상 |
+|---|---|
+| `<MNIST 프로젝트>/CLAUDE.md`, `<MNIST 프로젝트>/README.md` | SSOT 문서 작성 방식, 동기화/작업 규칙 서술 형식 |
+| `<MNIST 프로젝트>/mnist-numpy`, `<MNIST 프로젝트>/mnist-pytorch` | `src/{core,data,models,utils}` 폴더 구성, `scripts/`, `experiments/run.py` 패턴, `Trainer(wrapper, output_dir=None)` 시그니처 |
+
+## 8. Python 코딩 규칙
+
+- 코드 내 한국어 삽입 금지. 식별자, 주석, 문자열 모두 영어로 작성한다.
+- 세로 정렬(공백으로 맞추는 컬럼 정렬)을 사용하지 않는다.
+- `pathlib.Path` 대신 `os.path`를 사용한다.
+- 타입 힌트를 사용하지 않는다.
+- 파일 첫 줄에 `# src/data/filename.py: one-line description` 형식으로 프로젝트 루트 기준 경로를 포함하여 작성한다.
+- 클래스와 최상위 함수에 1줄 docstring을 작성한다. 클래스의 메서드에는 docstring을 달지 않는다.
+- 주석은 필요한 경우에만 최소한으로 삽입한다.
+- `src/` 하위 모든 폴더에 빈 `__init__.py`를 둔다.
+- `src/` 내부 파일 간 임포트는 `src.xxx` 절대 임포트를 사용한다. 상대 임포트(`..`, `.`)는 사용하지 않는다.
+- `src/` 외부(`scripts/`, `experiments/` 등)에서는 `sys.path`로 프로젝트 루트를 추가한 뒤 `src.xxx`로 임포트한다.
+
+## 9. 하위 문서
+
+- [[README]] - SSOT: 방법론 카탈로그, 폴더 구조, 모듈 시그니처
+- [[PLAN]] - Phase별 작업 계획 및 검증 방법
