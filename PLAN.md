@@ -205,9 +205,17 @@ Phase 0(폴더/파일 구조 확정, README 시그니처 재검토)을 완료했
 이후 세션에서 `src/utils/homography.py`(`estimate_homography`, `reproject_points`),
 `src/data/images.py`(코너 없는 이미지 폴더 스캔), `src/metrics/`(`BaseMetric` 및
 `PolygonIoU`/`MCD`/`MaxCD`/`ReprojectionError`/`PCK` 클래스)까지 구현하고 검증을
-마쳤다. 남은 Phase 1 항목(`src/data/labelme.py`, `src/data/synthetic.py`)과
-Phase 2(공통 인터페이스 + Method A 파이프라인)는 다음 세션에서 이어간다. Phase 3
-(나머지 4개 방법론)과 Phase 4(비교 스크립트)는 이후 세션에서 진행한다.
+마쳤다. 이어서 EDA 노트북(`notebooks/eda-{midv2020,smartdoc}-{dataset,transforms}.ipynb`)
+작업 중 `src/utils/plot.py`의 `show_samples`를 재작성했다: `get_samples()`/`Dataset`이
+반환하는 `(N,3,H,W)` 텐서를 직접 받도록 시그니처를 바꾸고(`load_raw_samples`,
+`apply_transform` 제거), `denormalize=False` 인자와 `Polygon(fill=False)` 코너 오버레이,
+고정 라벨 오프셋(`OFFSETS`)을 추가했다. 함께 `src/data/transforms.py`에 `ToNumpy`
+클래스와 `Normalize`/`Denormalize`의 `IMAGENET_MEAN`/`IMAGENET_STD` 기본값을 추가했고
+(`src/core/factory.py`에서는 두 상수를 제거), `src/data/dataset.py`의 `Subset`에 누락되어
+있던 `subset()` 메서드(split 이후 재샘플링 시 `AttributeError` 발생 버그)를 추가했다.
+남은 Phase 1 항목(`src/data/labelme.py`, `src/data/synthetic.py`)과 Phase 2(공통
+인터페이스 + Method A 파이프라인)는 다음 세션에서 이어간다. Phase 3(나머지 4개 방법론)과
+Phase 4(비교 스크립트)는 이후 세션에서 진행한다.
 
 ## 6. 검증 방법
 
