@@ -32,7 +32,7 @@ def create_data(data_dir, output_path):
         if ordered.sum() == 0 or is_invalid_corners(ordered):
             continue
 
-        rows.append([os.path.abspath(image_dir), img_fname] + ["%.6f" % v for v in ordered.reshape(8)])
+        rows.append([os.path.abspath(image_dir), img_fname] + ["%.4f" % v for v in ordered.reshape(8)])
 
     out_dir = os.path.dirname(os.path.abspath(output_path))
     os.makedirs(out_dir, exist_ok=True)

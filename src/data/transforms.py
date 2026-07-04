@@ -76,11 +76,14 @@ class RandomRotation:
         rad = math.radians(angle)
         cos_a, sin_a = math.cos(rad), math.sin(rad)
 
-        rotated = np.empty_like(corners)
-        for i, (x, y) in enumerate(corners):
-            dx, dy = x - 0.5, y - 0.5
-            rotated[i, 0] = cos_a * dx - sin_a * dy + 0.5
-            rotated[i, 1] = sin_a * dx + cos_a * dy + 0.5
+        # rotate in pixel space so non-square aspect ratios are not distorted
+        # F.rotate turns clockwise in image (y-down) pixel coordinates for a positive angle
+        width, height = image.size
+        pts = corners * np.array([width, height]) - np.array([width / 2.0, height / 2.0])
+        rotated = np.empty_like(pts)
+        rotated[:, 0] = cos_a * pts[:, 0] + sin_a * pts[:, 1]
+        rotated[:, 1] = -sin_a * pts[:, 0] + cos_a * pts[:, 1]
+        rotated = (rotated + np.array([width / 2.0, height / 2.0])) / np.array([width, height])
 
         if rotated.min() < 0.0 or rotated.max() > 1.0:
             return image, corners  # skip if any corner falls outside [0, 1]
@@ -131,7 +134,7 @@ class RandomScale:
         width, height = image.size
         new_size = (round(height * scale), round(width * scale))
 
-        scaled = (corners - 0.5) / scale + 0.5
+        scaled = (corners - 0.5) * scale + 0.5
         if scaled.min() < 0.0 or scaled.max() > 1.0:
             return image, corners  # skip if any corner falls outside [0, 1]
 
@@ -155,12 +158,15 @@ class RandomAffine:
         scale = random.uniform(*self.scale_range)
         shear_x = random.uniform(-self.shear, self.shear)
 
+        # apply the affine transform in pixel space so non-square aspect ratios are not distorted
         width, height = image.size
-        center = np.array([0.5, 0.5])
-        matrix = _affine_matrix(angle, (tx, ty), scale, (shear_x, 0.0))
+        size = np.array([width, height])
+        center = size / 2.0
+        matrix = _affine_matrix(angle, (tx * width, ty * height), scale, (shear_x, 0.0))
 
-        pts = corners - center
+        pts = corners * size - center
         transformed = pts @ matrix[:2, :2].T + matrix[:2, 2] + center
+        transformed = transformed / size
 
         if transformed.min() < 0.0 or transformed.max() > 1.0:
             return image, corners  # skip if any corner falls outside [0, 1]
@@ -248,6 +254,17 @@ class Normalize:
 
     def __call__(self, image, corners):
         return F.normalize(image, self.mean, self.std), corners
+
+
+class Denormalize:
+    """Reverse Normalize: restore original pixel scale with x * std + mean."""
+
+    def __init__(self, mean, std):
+        self.mean = torch.tensor(mean).view(-1, 1, 1)
+        self.std = torch.tensor(std).view(-1, 1, 1)
+
+    def __call__(self, image, corners):
+        return image * self.std + self.mean, corners
 
 
 class GaussianNoise:

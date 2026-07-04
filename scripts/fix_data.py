@@ -33,8 +33,8 @@ def fix_csv(csv_path, min_dist=0.02):
             fixed += 1
 
         flat = ordered.reshape(8)
-        row["x1"], row["y1"], row["x2"], row["y2"] = ["%.6f" % v for v in flat[:4]]
-        row["x3"], row["y3"], row["x4"], row["y4"] = ["%.6f" % v for v in flat[4:]]
+        row["x1"], row["y1"], row["x2"], row["y2"] = ["%.4f" % v for v in flat[:4]]
+        row["x3"], row["y3"], row["x4"], row["y4"] = ["%.4f" % v for v in flat[4:]]
         out_rows.append(row)
 
     with open(csv_path, "w", newline="", encoding="utf-8") as f:

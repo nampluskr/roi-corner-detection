@@ -1,7 +1,6 @@
 # src/utils/geometry.py: geometric utilities for corner coordinate manipulation
 
 import numpy as np
-import cv2
 
 
 def order_corners(corners):
@@ -26,15 +25,16 @@ def is_invalid_corners(corners, min_dist=0.02):
 
 
 def mask_to_corners(mask):
-    """Binary mask (H, W) -> 4 corner points (4, 2) via largest contour, normalized [0, 1]."""
+    """Binary mask (H, W) -> 4 corner points (4, 2) via x+-y extremes, normalized [0, 1]."""
     h, w = mask.shape
-    mask_u8 = (mask > 0).astype(np.uint8) * 255
-    contours, _ = cv2.findContours(mask_u8, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    if not contours:
+    ys, xs = np.where(mask > 0)
+    if len(xs) == 0:
         return np.zeros((4, 2), dtype=np.float32)
 
-    largest = max(contours, key=cv2.contourArea)
-    rect = cv2.minAreaRect(largest)
-    box = cv2.boxPoints(rect)
-    corners = box / np.array([w, h], dtype=np.float32)
+    tl = (xs[np.argmin(xs + ys)], ys[np.argmin(xs + ys)])
+    tr = (xs[np.argmax(xs - ys)], ys[np.argmax(xs - ys)])
+    br = (xs[np.argmax(xs + ys)], ys[np.argmax(xs + ys)])
+    bl = (xs[np.argmin(xs - ys)], ys[np.argmin(xs - ys)])
+
+    corners = np.array([tl, tr, br, bl], dtype=np.float32) / np.array([w, h], dtype=np.float32)
     return corners.astype(np.float32)

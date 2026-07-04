@@ -1,5 +1,7 @@
 # src/core/factory.py: factory functions for creating data pipeline objects
 
+import numpy as np
+import torch
 from src.data.dataset import Dataset
 from src.data.dataloader import Dataloader
 from src.data.transforms import (
@@ -44,3 +46,19 @@ def get_dataloader(split, csv_path, input_size=512, batch_size=16, seed=42):
         batch_size=batch_size,
         seed=seed,
     )
+
+
+def get_samples(split, csv_path, input_size=512,
+                indices=None, num_samples=None, shuffle=False, seed=42):
+    """Return a batch of samples selected by indices or count as stacked tensors."""
+    dataset = get_dataset(split, csv_path, input_size)
+    if indices is not None:
+        idx = indices
+    else:
+        rng = np.random.default_rng(seed)
+        idx = rng.permutation(len(dataset)).tolist() if shuffle else list(range(len(dataset)))
+        if num_samples is not None:
+            idx = idx[:num_samples]
+    samples = [dataset[i] for i in idx]
+    images, corners = zip(*samples)
+    return torch.stack(list(images)), torch.stack(list(corners))
