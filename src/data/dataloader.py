@@ -1,27 +1,22 @@
-# src/data/dataloader.py: batching iterator over a CornerDataset
+# src/data/dataloader.py: batching iterator over a Dataset
+
 import torch
-from torch.utils.data import DataLoader as TorchDataloader
+from torch.utils.data import DataLoader as TorchDataLoader
 
 
-class Dataloader:
-    """Batches (image, corners) samples from a CornerDataset."""
+class Dataloader(TorchDataLoader):
+    """Batches (image, corners) samples from a Dataset."""
 
     def __init__(self, split, dataset, batch_size=16, seed=42):
-        self.split = split
-        self.dataset = dataset
-        self.batch_size = batch_size
-        self.seed = seed
-
-        generator = torch.Generator().manual_seed(seed)
-        self.loader = TorchDataloader(
-            dataset,
+        num_workers = 4 if split == "train" else 0
+        generator = torch.Generator()
+        generator.manual_seed(seed)
+        super().__init__(
+            dataset=dataset,
             batch_size=batch_size,
             shuffle=(split == "train"),
+            drop_last=(split == "train"),
             generator=generator,
+            num_workers=num_workers,
+            persistent_workers=(num_workers > 0),
         )
-
-    def __len__(self):
-        return len(self.loader)
-
-    def __iter__(self):
-        return iter(self.loader)

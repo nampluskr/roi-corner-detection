@@ -1,6 +1,9 @@
-# CLAUDE.md
+# AGENTS.md
 
-이 파일은 `roi-corner-detection` 프로젝트에서 작업할 때 따르는 공통 지침이다.
+이 파일은 Codex를 포함한 코드 에이전트가 `roi-corner-detection` 프로젝트에서 작업할 때
+따르는 공통 지침이다.
+
+이 파일은 루트 `CLAUDE.md`와 동기화되어야 한다.
 
 ## 1. 프로젝트 개요
 
@@ -167,7 +170,6 @@ MNIST 프로젝트 세부 참조 대상:
 - `pathlib.Path` 대신 `os.path`를 사용한다.
 - 타입 힌트를 사용하지 않는다.
 - 파일 첫 줄에 `# src/data/filename.py: one-line description` 형식으로 프로젝트 루트 기준 경로를 포함하여 작성한다.
-  이 헤더 주석 다음에는 빈 줄을 하나 삽입한 뒤 import 구문을 작성한다.
 - 클래스와 최상위 함수에 1줄 docstring을 작성한다. 클래스의 메서드에는 docstring을 달지 않는다.
 - 주석은 필요한 경우에만 최소한으로 삽입한다.
 - `src/` 하위 모든 폴더에 빈 `__init__.py`를 둔다.

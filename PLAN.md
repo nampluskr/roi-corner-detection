@@ -26,7 +26,12 @@ MNIST 프로젝트의 "프레임워크 축 통합"과는 다르지만, 레거시
 
 ## 2. 확정된 결정 사항
 
-1. **방법론 범위**: 상위 5개(A.Direct, B.Heatmap, I.Hybrid, D.Line, J.Doc-pretrained) 채택
+1. **방법론 범위**: 총 10개 모델 채택. 우선순위 1-3은 고정 - 1.direct(A), 2.seg(C,
+   Segmentation Corner를 hybrid에서 독립 승격), 3.detect(신규 설계, 바운딩박스 기반
+   keypoint detector. 카탈로그 G의 DETR 방식이 아님). 4-10은 레거시 카탈로그의 나머지
+   7개(B, I, D, J, E, H, F)를 프로젝트 적합도 순으로 재정렬 - 4.heatmap(B), 5.hybrid(I),
+   6.line(D), 7.doc(J), 8.homography(E), 9.foundation(H), 10.gcn(F).
+   상세 비교는 `docs/roi-corner-detection-models.md` 참조
 2. **git 저장소**: `roi-corner-detection`는 워크스페이스와 별도로 자체 git 저장소로 init
    (GitHub remote 연결은 사용자가 추후 직접 진행)
 3. **레거시 코드 재사용 방식**: 레거시 프로젝트의 Stage1-2 코드는 참조만 하고 완전 재구현
@@ -63,15 +68,15 @@ roi-corner-detection/
 │   ├── data/
 │   └── results/
 ├── outputs/
-│   ├── direct/ heatmap/ hybrid/ line/ doc/
+│   ├── detect/ direct/ doc/ foundation/ gcn/ heatmap/ homography/ hybrid/ line/ seg/
 │   └── comparison/
 ├── scripts/
 │   ├── benchmark.py
 │   ├── config.py
+│   ├── create_data.py
 │   ├── evaluate.py
-│   ├── fix_corner_order.py
+│   ├── fix_data.py
 │   ├── predict.py
-│   ├── prepare_data.py
 │   └── train.py
 └── src/
     ├── core/
@@ -96,11 +101,16 @@ roi-corner-detection/
     │   │   ├── base_postprocessor.py
     │   │   ├── base_preprocessor.py
     │   │   └── base_wrapper.py
-    │   ├── direct/    (loss.py, model.py, postprocessor.py, preprocessor.py, wrapper.py)
-    │   ├── doc/       (동일 5개 파일)
-    │   ├── heatmap/   (동일 5개 파일)
-    │   ├── hybrid/    (동일 5개 파일)
-    │   └── line/      (동일 5개 파일)
+    │   ├── detect/      (loss.py, model.py, postprocessor.py, preprocessor.py, wrapper.py)
+    │   ├── direct/      (동일 5개 파일)
+    │   ├── doc/         (동일 5개 파일)
+    │   ├── foundation/  (동일 5개 파일)
+    │   ├── gcn/         (동일 5개 파일)
+    │   ├── heatmap/     (동일 5개 파일)
+    │   ├── homography/  (동일 5개 파일)
+    │   ├── hybrid/      (동일 5개 파일)
+    │   ├── line/        (동일 5개 파일)
+    │   └── seg/         (동일 5개 파일)
     └── utils/
         ├── geometry.py
         └── homography.py
@@ -108,30 +118,38 @@ roi-corner-detection/
 
 ## 4. 실행 단계
 
-### Phase 0 - 프로젝트 스캐폴딩 (진행 중)
+### Phase 0 - 프로젝트 스캐폴딩 (완료)
 
 - 0-1단계 (완료): 루트 폴더 구조 확정
 - 0-2단계 (완료): `src/` 하위 폴더 구조 확정 (core/data/metrics/models/utils, models 하위 base+5방법론)
 - 0-3단계 (완료): `src/utils/`, `src/data/` 파일 리스트 확정, `src/models/base/`,
   `src/models/<name>/`의 5파일 패턴 및 `src/metrics/metrics.py` 확정
-- 0-4단계 (이번 턴 완료): 위 결정 사항을 `README.md`(SSOT)/`CLAUDE.md`/`PLAN.md` 3개 파일에 반영
-- **다음 턴 (사용자 진행 예정)**: 사용자가 `README.md`의 시그니처(함수/클래스 인터페이스)를
-  다시 검토. 검토 완료 후 `git init`, `.gitignore` 작성, 실제 디렉토리/파일 스켈레톤 생성 진행
+- 0-4단계 (완료): 위 결정 사항을 `README.md`(SSOT)/`CLAUDE.md`/`PLAN.md` 3개 파일에 반영
+- 0-5단계 (완료): `README.md` 시그니처 재검토 완료
 
-### Phase 1 - 공유 데이터/유틸 재구현
+### Phase 1 - 공유 데이터/유틸 재구현 (진행 중)
 
 참조: `<레거시 프로젝트>/src/{utils,data}` (복사 금지, 재구현)
 
-- `src/utils/geometry.py`: `order_corners`, `mask_to_corners`, `corners_to_mask`,
-  `polygon_area`, `clip_corners_to_bounds`
-- `src/utils/homography.py`: `estimate_homography`, `reproject_points`
-- `src/data/dataset.py`: `CornerDataset` (csv_path, transform / `.split(ratio, seed)`)
-- `src/data/dataloader.py`: `Dataloader` (`torch.utils.data.DataLoader` 래퍼)
-- `src/data/transforms.py`: 기하 변환(Resize, Flip+코너 재정렬, Rotation +-5도 clip 검증) + 광학 변환
-- `src/data/{labelme,smartdoc,midv2020}.py`: 데이터셋 파서
-- `src/data/synthetic.py`: 합성 Fringe 패턴 생성 (Domain Adaptation 단계, 실제 사용은 후순위)
-- `src/metrics/metrics.py`: `polygon_iou`, `mcd`, `max_cd`, `reprojection_error`
-- `scripts/prepare_data.py`, `scripts/fix_corner_order.py`
+- [x] `src/data/dataset.py`: `Dataset` (`torch.utils.data.Dataset` 상속, `csv_path`
+  str/리스트 지원, `transform` 생략 시 `ToTensor()` 기본 적용, `.split(ratio, seed)`는
+  `torch.utils.data.random_split` 기반)
+- [x] `src/data/dataloader.py`: `Dataloader` (`torch.utils.data.DataLoader` 상속,
+  MNIST 프로젝트 패턴 적용: train은 shuffle/drop_last/num_workers=4, 나머지는 미적용)
+- [x] `src/data/transforms.py`: `Compose` + 기하 변환(`Resize`, `RandomHorizontalFlip`,
+  `RandomVerticalFlip`, `RandomRotation`, `RandomPerspective`, `RandomScale`) + 이미지 전용
+  변환(`ColorJitter`, `GaussianBlur`, `ToTensor`, `Normalize`, `GaussianNoise`) 11개 클래스
+  전체 구현. `pytorch_env`(torch 2.5.1+cu121/torchvision 0.20.1+cu121)에서 전체 파이프라인
+  실행 및 플립 시 코너 순서 보존 검증 완료
+- [x] `src/utils/geometry.py`: `order_corners`, `is_invalid_corners`, `mask_to_corners`
+  구현 완료 (`corners_to_mask`, `polygon_area`는 아직 미구현, 필요 시점에 추가)
+- [ ] `src/utils/homography.py`: `estimate_homography`, `reproject_points`
+- [x] `src/data/smartdoc.py`, `src/data/midv2020.py`: `create_data(data_dir, output_path)`로
+  raw 데이터를 파싱해 `gt_corners.csv` 저장 (`labelme.py`는 아직 미구현)
+- [ ] `src/data/synthetic.py`: 합성 Fringe 패턴 생성 (Domain Adaptation 단계, 실제 사용은 후순위)
+- [ ] `src/metrics/metrics.py`: `polygon_iou`, `mcd`, `max_cd`, `reprojection_error`, `pck`
+- [x] `scripts/create_data.py`: `--dataset {smartdoc,midv2020}` CLI로 `create_data()` 호출
+- [x] `scripts/fix_data.py`: 기존 `gt_corners.csv`의 코너 순서 재정렬 + 퇴화 샘플 제거
 
 ### Phase 2 - 공통 인터페이스 + Method A(Direct) 전체 파이프라인
 
@@ -147,28 +165,38 @@ roi-corner-detection/
 - **검증**: `python -c "from src.models.direct.model import DirectModel; ..."` shape 확인,
   `python scripts/train.py --method direct --max_epochs 1` 로 1 epoch 학습 스모크 테스트
 
-### Phase 3 - 나머지 방법론 순차 구현 (Method A 검증 후 별도 세션 권장)
+### Phase 3 - 나머지 방법론 순차 구현 (direct 검증 후 별도 세션 권장)
 
-우선순위 순: B.Heatmap -> I.Hybrid -> D.Line -> J.Doc-pretrained
+우선순위 순: seg -> detect -> heatmap -> hybrid -> line -> doc -> homography ->
+foundation -> gcn
 각 방법론은 `src/models/<name>/`에 5개 파일(model/preprocessor/postprocessor/loss/wrapper)만
 추가하고 `src/models/base/`, `src/core/`, `src/metrics/`, `src/utils/`를 그대로 재사용한다.
+모든 방법론은 공통 `Dataloader`로부터 입력을 받고, 전용 `preprocessor.py`가 표준 코너
+(N, 4, 2)를 방법론별 학습 타깃으로 변환한다.
 
 ### Phase 4 - 비교 프레임워크
 
-- `scripts/benchmark.py`: 전체 방법론 학습된 체크포인트로 동일 테스트셋 평가,
+- `scripts/benchmark.py`: 10개 방법론 전체의 학습된 체크포인트로 동일 테스트셋 평가,
   `outputs/comparison/results.csv` (Polygon IoU, MCD, Reprojection Error, GPU/CPU latency, 모델 크기) 생성
 - `notebooks/results/compare_methods.ipynb`: 방법론별 성능/속도 비교 표, 실패 케이스 시각화
 
 ## 5. 이번 세션 실행 범위
 
-Phase 0의 폴더/파일 구조 확정(0-1 ~ 0-4단계)까지 진행했다. 실제 디렉토리/파일 생성은
-사용자가 `README.md`의 시그니처를 재검토한 뒤 진행한다. Phase 1-2(공유 코드 + Method A
-전체 파이프라인)는 그 다음 세션에서 진행하고, Phase 3(나머지 4개 방법론)과 Phase 4
-(비교 스크립트)는 이후 세션에서 이어간다.
+Phase 0(폴더/파일 구조 확정, README 시그니처 재검토)을 완료했고, Phase 1에서
+`src/data/dataset.py`, `dataloader.py`, `transforms.py` 3개 파일 구현과 `pytorch_env`에서의
+실행 검증까지 마쳤다. 이어서 `src/utils/geometry.py`(`order_corners`, `is_invalid_corners`,
+`mask_to_corners`), `src/data/smartdoc.py`, `src/data/midv2020.py`, `scripts/create_data.py`,
+`scripts/fix_data.py`를 구현하고 실제 raw 데이터(`/mnt/d/datasets/smart_doc_extracted`,
+`/mnt/d/datasets/midv2020_processed`)로 `data/smartdoc/gt_corners.csv`(24,860행),
+`data/midv2020/gt_corners.csv`(68,409행) 생성 및 `fix_data.py` 실행까지 검증했다.
+남은 Phase 1 항목(`src/utils/homography.py`, `src/data/labelme.py`, `src/data/synthetic.py`,
+`src/metrics/metrics.py`)과 Phase 2(공통 인터페이스 + Method A 파이프라인)는 다음 세션에서
+이어간다. Phase 3(나머지 4개 방법론)과 Phase 4(비교 스크립트)는 이후 세션에서 진행한다.
 
 ## 6. 검증 방법
 
 1. `python -c "from src.models.direct.model import DirectModel; import torch; m = DirectModel(); print(m(torch.randn(2,3,512,512)).shape)"` -> `torch.Size([2, 8])`
-2. `python scripts/prepare_data.py ...` 로 `gt_corners.csv` 생성 확인 (실제 이미지 데이터가 없다면 스킵하고 코드 정합성만 확인)
-3. `python scripts/train.py --method direct --max_epochs 1` 스모크 테스트 (데이터 없으면 더미 텐서 기반 유닛 테스트로 대체)
+2. `python scripts/create_data.py --dataset smartdoc --data_dir <raw_dir> --output_path data/smartdoc/gt_corners.csv` 로 `gt_corners.csv` 생성 확인 (완료: 24,860행 생성, `midv2020`도 68,409행 생성 완료)
+3. `python scripts/fix_data.py data/smartdoc/gt_corners.csv data/midv2020/gt_corners.csv` 로 코너 순서/퇴화 샘플 보정 확인 (완료: smartdoc `fixed=0 removed=0`, midv2020 `fixed=1 removed=0`)
+4. `python scripts/train.py --method direct --max_epochs 1` 스모크 테스트 (데이터 없으면 더미 텐서 기반 유닛 테스트로 대체)
 4. `git log --oneline` 로 Phase별 커밋 확인
