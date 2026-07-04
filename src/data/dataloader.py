@@ -1,11 +1,10 @@
-# src/data/dataloader.py: batching iterator over a Dataset
+# src/data/dataloader.py: batching iterator over a dataset
 
 import torch
-from torch.utils.data import DataLoader as TorchDataLoader
 
 
-class Dataloader(TorchDataLoader):
-    """Batches (image, corners) samples from a Dataset."""
+class Dataloader(torch.utils.data.DataLoader):
+    """Batches samples from a dataset; batch shape follows the dataset's __getitem__."""
 
     def __init__(self, split, dataset, batch_size=16, seed=42):
         num_workers = 4 if split == "train" else 0

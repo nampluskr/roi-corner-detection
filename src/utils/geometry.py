@@ -24,6 +24,13 @@ def is_invalid_corners(corners, min_dist=0.02):
     return False
 
 
+def polygon_area(corners):
+    """Shoelace formula: (N, 2) ordered polygon vertices -> float area."""
+    pts = np.array(corners, dtype=np.float64).reshape(-1, 2)
+    x, y = pts[:, 0], pts[:, 1]
+    return float(0.5 * abs(np.dot(x, np.roll(y, -1)) - np.dot(y, np.roll(x, -1))))
+
+
 def mask_to_corners(mask):
     """Binary mask (H, W) -> 4 corner points (4, 2) via x+-y extremes, normalized [0, 1]."""
     h, w = mask.shape

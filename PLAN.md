@@ -44,7 +44,9 @@ MNIST 프로젝트의 "프레임워크 축 통합"과는 다르지만, 레거시
    공통 추상 인터페이스는 `src/models/base/`에 모은다 (`BaseModel`, `BasePreprocessor`,
    `BasePostprocessor`, `BaseLoss`, `BaseWrapper`).
 6. **메트릭 배치**: `src/metrics/`를 `core/`와 별개인 top-level 폴더로 둔다.
-   내부는 `metrics.py` 단일 파일 (대부분 몇 줄짜리 순수 함수라 폴더 분리는 과함).
+   각 메트릭은 `BaseMetric`(`base_metric.py`)을 상속하는 클래스이며, 메트릭당 파일
+   하나로 분리한다(`polygon_iou.py`, `mcd.py`, `max_cd.py`, `reprojection_error.py`,
+   `pck.py`). `__call__(pred_corners, gt_corners, ...)`로 함수처럼 호출한다.
 7. **유틸 배치**: `src/utils/`는 `geometry.py`(코너/폴리곤 순수 연산), `homography.py`
    (호모그래피 추정/역투영) 2개 파일. 방법론 하나만 쓰는 보조 연산(예: `line`의 직선 교점
    계산)은 승격하지 않고 해당 방법론 폴더 안에 둔다.
@@ -93,7 +95,12 @@ roi-corner-detection/
     │   ├── synthetic.py
     │   └── transforms.py
     ├── metrics/
-    │   └── metrics.py
+    │   ├── base_metric.py
+    │   ├── max_cd.py
+    │   ├── mcd.py
+    │   ├── pck.py
+    │   ├── polygon_iou.py
+    │   └── reprojection_error.py
     ├── models/
     │   ├── base/
     │   │   ├── base_loss.py
@@ -131,9 +138,10 @@ roi-corner-detection/
 
 참조: `<레거시 프로젝트>/src/{utils,data}` (복사 금지, 재구현)
 
-- [x] `src/data/dataset.py`: `Dataset` (`torch.utils.data.Dataset` 상속, `csv_path`
-  str/리스트 지원, `transform` 생략 시 `ToTensor()` 기본 적용, `.split(ratio, seed)`는
-  `torch.utils.data.random_split` 기반)
+- [x] `src/data/dataset.py`: `Dataset`(`torch.utils.data.Dataset` 상속, `csv_path`
+  str/리스트 지원, `transform` 생략 시 `ToTensor()` 기본 적용)을 상속하는
+  `CornerDataset`(코너 포함 CSV)/`ImageDataset`(코너 없는 CSV)로 분리, `Subset`
+  (`.split(ratio, seed)`/`.subset(num_samples, seed)` 반환, `set_transform` 지원)
 - [x] `src/data/dataloader.py`: `Dataloader` (`torch.utils.data.DataLoader` 상속,
   MNIST 프로젝트 패턴 적용: train은 shuffle/drop_last/num_workers=4, 나머지는 미적용)
 - [x] `src/data/transforms.py`: `Compose` + 기하 변환(`Resize`, `RandomHorizontalFlip`,
@@ -141,15 +149,20 @@ roi-corner-detection/
   변환(`ColorJitter`, `GaussianBlur`, `ToTensor`, `Normalize`, `GaussianNoise`) 11개 클래스
   전체 구현. `pytorch_env`(torch 2.5.1+cu121/torchvision 0.20.1+cu121)에서 전체 파이프라인
   실행 및 플립 시 코너 순서 보존 검증 완료
-- [x] `src/utils/geometry.py`: `order_corners`, `is_invalid_corners`, `mask_to_corners`
-  구현 완료 (`corners_to_mask`, `polygon_area`는 아직 미구현, 필요 시점에 추가)
-- [ ] `src/utils/homography.py`: `estimate_homography`, `reproject_points`
+- [x] `src/utils/geometry.py`: `order_corners`, `is_invalid_corners`, `mask_to_corners`,
+  `polygon_area` 구현 완료 (`corners_to_mask`는 아직 미구현, 필요 시점에 추가)
+- [x] `src/utils/homography.py`: `estimate_homography`, `reproject_points` 구현 완료
 - [x] `src/data/smartdoc.py`, `src/data/midv2020.py`: `create_data(data_dir, output_path)`로
   raw 데이터를 파싱해 `gt_corners.csv` 저장 (`labelme.py`는 아직 미구현)
+- [x] `src/data/images.py`: `create_data(data_dir, output_path)`로 코너 없는 순수 이미지
+  폴더를 스캔해 `image_dir,image_name` CSV 저장 (`ImageDataset`용)
 - [ ] `src/data/synthetic.py`: 합성 Fringe 패턴 생성 (Domain Adaptation 단계, 실제 사용은 후순위)
-- [ ] `src/metrics/metrics.py`: `polygon_iou`, `mcd`, `max_cd`, `reprojection_error`, `pck`
-- [x] `scripts/create_data.py`: `--dataset {smartdoc,midv2020}` CLI로 `create_data()` 호출
-- [x] `scripts/fix_data.py`: 기존 `gt_corners.csv`의 코너 순서 재정렬 + 퇴화 샘플 제거
+- [x] `src/metrics/`: `base_metric.py`(`BaseMetric`)를 상속하는 `polygon_iou.py`(`PolygonIoU`),
+  `mcd.py`(`MCD`), `max_cd.py`(`MaxCD`), `reprojection_error.py`(`ReprojectionError`),
+  `pck.py`(`PCK`) 클래스 구현 완료. 각각 `__call__(pred_corners, gt_corners, ...)`로 호출
+- [x] `scripts/create_data.py`: `--dataset {smartdoc,midv2020,images}` CLI로 `create_data()` 호출
+- [x] `scripts/fix_data.py`: `fix_images`(존재하지 않는 이미지 파일 행 제거),
+  `fix_corners`(코너 순서 재정렬 + 퇴화 샘플 제거)
 
 ### Phase 2 - 공통 인터페이스 + Method A(Direct) 전체 파이프라인
 
@@ -189,9 +202,12 @@ Phase 0(폴더/파일 구조 확정, README 시그니처 재검토)을 완료했
 `scripts/fix_data.py`를 구현하고 실제 raw 데이터(`/mnt/d/datasets/smart_doc_extracted`,
 `/mnt/d/datasets/midv2020_processed`)로 `data/smartdoc/gt_corners.csv`(24,860행),
 `data/midv2020/gt_corners.csv`(68,409행) 생성 및 `fix_data.py` 실행까지 검증했다.
-남은 Phase 1 항목(`src/utils/homography.py`, `src/data/labelme.py`, `src/data/synthetic.py`,
-`src/metrics/metrics.py`)과 Phase 2(공통 인터페이스 + Method A 파이프라인)는 다음 세션에서
-이어간다. Phase 3(나머지 4개 방법론)과 Phase 4(비교 스크립트)는 이후 세션에서 진행한다.
+이후 세션에서 `src/utils/homography.py`(`estimate_homography`, `reproject_points`),
+`src/data/images.py`(코너 없는 이미지 폴더 스캔), `src/metrics/`(`BaseMetric` 및
+`PolygonIoU`/`MCD`/`MaxCD`/`ReprojectionError`/`PCK` 클래스)까지 구현하고 검증을
+마쳤다. 남은 Phase 1 항목(`src/data/labelme.py`, `src/data/synthetic.py`)과
+Phase 2(공통 인터페이스 + Method A 파이프라인)는 다음 세션에서 이어간다. Phase 3
+(나머지 4개 방법론)과 Phase 4(비교 스크립트)는 이후 세션에서 진행한다.
 
 ## 6. 검증 방법
 

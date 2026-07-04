@@ -12,7 +12,23 @@ from src.utils.geometry import order_corners, is_invalid_corners
 CSV_HEADER = ["image_dir", "image_name", "x1", "y1", "x2", "y2", "x3", "y3", "x4", "y4"]
 
 
-def fix_csv(csv_path, min_dist=0.02):
+def fix_images(csv_path):
+    """Drop rows in csv_path whose image_dir/image_name file does not exist, overwriting csv_path."""
+    with open(csv_path, newline="", encoding="utf-8") as f:
+        rows = list(csv.DictReader(f))
+
+    out_rows = [row for row in rows if os.path.exists(os.path.join(row["image_dir"], row["image_name"]))]
+    removed = len(rows) - len(out_rows)
+
+    with open(csv_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=CSV_HEADER)
+        writer.writeheader()
+        writer.writerows(out_rows)
+
+    print("[OK] %s  total=%d  removed=%d" % (csv_path, len(rows), removed))
+
+
+def fix_corners(csv_path, min_dist=0.02):
     """Reorder corners in csv_path to TL,TR,BR,BL and drop degenerate rows, overwriting csv_path."""
     with open(csv_path, newline="", encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
@@ -59,7 +75,8 @@ def main():
         if not os.path.exists(path):
             print("[SKIP] not found: %s" % path)
             continue
-        fix_csv(path, min_dist=args.min_dist)
+        fix_images(path)
+        fix_corners(path, min_dist=args.min_dist)
 
 
 if __name__ == "__main__":

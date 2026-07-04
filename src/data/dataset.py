@@ -1,17 +1,18 @@
-# src/data/dataset.py: dataset that loads corner coordinates from a CSV file
+# src/data/dataset.py: datasets that load image paths, with or without corner coordinates, from CSV files
 
 import os
 import csv
+import copy
 import numpy as np
 import torch
 from PIL import Image
-from torch.utils.data import Dataset as TorchDataset, random_split
+from torch.utils.data import random_split, Dataset as TorchDataset, Subset as TorchSubset
 
 from src.data.transforms import ToTensor
 
 
 class Dataset(TorchDataset):
-    """Loads (image, corners) pairs from a gt_corners.csv-format file."""
+    """Shared CSV-loading, splitting, and subsetting logic for corner datasets."""
 
     def __init__(self, csv_path, transform=None):
         self.csv_path = csv_path
@@ -24,26 +25,88 @@ class Dataset(TorchDataset):
         samples = []
         for p in csv_path:
             with open(p, newline="", encoding="utf-8") as f:
-                for row in csv.DictReader(f):
-                    image_path = os.path.join(row["image_dir"], row["image_name"])
-                    corners = np.array([
-                        row["x1"], row["y1"], row["x2"], row["y2"],
-                        row["x3"], row["y3"], row["x4"], row["y4"],
-                    ], dtype=np.float32).reshape(4, 2)
-                    samples.append((image_path, corners))
+                reader = csv.DictReader(f)
+                for row in reader:
+                    samples.append(self._parse_row(row))
         return samples
+
+    def _parse_row(self, row):
+        raise NotImplementedError
+
+    def __len__(self):
+        return len(self.samples)
+
+    def __getitem__(self, idx):
+        raise NotImplementedError
 
     def split(self, split_ratio=0.8, seed=42):
         n_train = int(len(self) * split_ratio)
         n_valid = len(self) - n_train
         generator = torch.Generator().manual_seed(seed)
-        return random_split(self, [n_train, n_valid], generator=generator)
+        train_indices, valid_indices = random_split(
+            range(len(self)), [n_train, n_valid], generator=generator)
+        return Subset(self, list(train_indices)), Subset(self, list(valid_indices))
+
+    def subset(self, num_samples, seed=42):
+        generator = torch.Generator().manual_seed(seed)
+        indices = torch.randperm(len(self), generator=generator)[:num_samples].tolist()
+        return Subset(self, indices)
+
+    def set_transform(self, transform):
+        new_dataset = copy.copy(self)
+        new_dataset.transform = transform
+        return new_dataset
+
+
+class Subset(TorchDataset):
+    """Wraps a torch Subset so set_transform can rebuild it with a new transform."""
+
+    def __init__(self, dataset, indices):
+        self.dataset = dataset
+        self.indices = indices
+        self._subset = TorchSubset(dataset, indices)
 
     def __len__(self):
-        return len(self.samples)
+        return len(self._subset)
+
+    def __getitem__(self, idx):
+        return self._subset[idx]
+
+    def subset(self, num_samples, seed=42):
+        generator = torch.Generator().manual_seed(seed)
+        indices = torch.randperm(len(self), generator=generator)[:num_samples].tolist()
+        return Subset(self, indices)
+
+    def set_transform(self, transform):
+        new_dataset = self.dataset.set_transform(transform)
+        return Subset(new_dataset, self.indices)
+
+
+class CornerDataset(Dataset):
+    """Loads (image, corners) pairs from a CSV with x1..y4 corner columns."""
+
+    def _parse_row(self, row):
+        image_path = os.path.join(row["image_dir"], row["image_name"])
+        corners = np.array([
+            row["x1"], row["y1"], row["x2"], row["y2"],
+            row["x3"], row["y3"], row["x4"], row["y4"],
+        ], dtype=np.float32).reshape(4, 2)
+        return image_path, corners
 
     def __getitem__(self, idx):
         image_path, corners = self.samples[idx]
         image = Image.open(image_path).convert("RGB")
         image, corners = self.transform(image, corners)
         return image, corners
+
+
+class ImageDataset(Dataset):
+    """Loads bare images from a CSV with no corner columns."""
+
+    def _parse_row(self, row):
+        return os.path.join(row["image_dir"], row["image_name"])
+
+    def __getitem__(self, idx):
+        image_path = self.samples[idx]
+        image = Image.open(image_path).convert("RGB")
+        return self.transform(image)
