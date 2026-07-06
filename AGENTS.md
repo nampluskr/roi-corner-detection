@@ -129,6 +129,9 @@ src/
 - `scripts/` CLI 인수와 동작이 달라지면 전체 방법론에 동일하게 적용되도록 구현한다.
 - 방법론 구현 순서는 `PLAN.md`의 Phase 순서(direct -> seg -> detect -> heatmap -> hybrid
   -> line -> doc -> homography -> foundation -> gcn)를 따른다.
+- 각 방법론은 `main`에서 분기한 `method/<name>` 브랜치(예: `method/direct`)에서 구현/학습/평가를
+  진행하고, 검증을 마친 뒤 `main`에 merge한다. 다음 방법론 브랜치는 이전 방법론 merge 완료 후에
+  분기한다.
 
 ## 6. 문서 및 코드 작성 규칙
 

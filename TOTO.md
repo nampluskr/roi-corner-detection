@@ -7,7 +7,8 @@
 
 ## 모델 구현 및 평가
 
-각 모델별 branch 분기 (최종 10개) 만들어 개별 모델 작성
+각 모델별 branch 분기 (최종 10개) 만들어 개별 모델 작성 (CLAUDE.md/AGENTS.md/PLAN.md에
+`method/<name>` 브랜치 전략으로 반영 완료)
 
 - [ ] 1순위: direct regression
   - rennet18 / resnet34 / resnet50 -> /mnt/d/backbones

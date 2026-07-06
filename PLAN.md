@@ -32,8 +32,12 @@ MNIST 프로젝트의 "프레임워크 축 통합"과는 다르지만, 레거시
    7개(B, I, D, J, E, H, F)를 프로젝트 적합도 순으로 재정렬 - 4.heatmap(B), 5.hybrid(I),
    6.line(D), 7.doc(J), 8.homography(E), 9.foundation(H), 10.gcn(F).
    상세 비교는 `docs/common/roi-corner-detection-models.md` 참조
-2. **git 저장소**: `roi-corner-detection`는 워크스페이스와 별도로 자체 git 저장소로 init
-   (GitHub remote 연결은 사용자가 추후 직접 진행)
+2. **git 저장소 및 브랜치 전략**: `roi-corner-detection`는 워크스페이스와 별도로 자체 git
+   저장소로 init (GitHub remote 연결은 사용자가 추후 직접 진행). 방법론별 구현은 `main`에서
+   분기한 `method/<name>` 브랜치(예: `method/direct`, `method/seg`)에서 진행하고, 해당
+   방법론의 학습/평가 검증까지 마친 뒤 `main`에 merge한다. 방법론 순서는 Phase 3 우선순위
+   (direct -> seg -> detect -> heatmap -> hybrid -> line -> doc -> homography -> foundation
+   -> gcn)를 따르며, 한 방법론의 merge가 끝난 뒤 다음 방법론 브랜치를 분기한다.
 3. **레거시 코드 재사용 방식**: 레거시 프로젝트의 Stage1-2 코드는 참조만 하고 완전 재구현
    (MNIST 프로젝트와 동일 원칙, 복사/심링크 금지)
 4. **루트 폴더**: `configs/` 없음. `data/`(정답/예측 CSV, git-ignore), `docs/`(설계 문서) 추가.
@@ -183,10 +187,12 @@ roi-corner-detection/
 
 우선순위 순: seg -> detect -> heatmap -> hybrid -> line -> doc -> homography ->
 foundation -> gcn
-각 방법론은 `src/models/<name>/`에 5개 파일(model/preprocessor/postprocessor/loss/wrapper)만
+각 방법론은 `main`에서 분기한 `method/<name>` 브랜치에서 구현/학습/평가를 진행하며,
+`src/models/<name>/`에 5개 파일(model/preprocessor/postprocessor/loss/wrapper)만
 추가하고 `src/models/base/`, `src/core/`, `src/metrics/`, `src/utils/`를 그대로 재사용한다.
 모든 방법론은 공통 `Dataloader`로부터 입력을 받고, 전용 `preprocessor.py`가 표준 코너
-(N, 4, 2)를 방법론별 학습 타깃으로 변환한다.
+(N, 4, 2)를 방법론별 학습 타깃으로 변환한다. 검증(스모크 테스트 + 평가 지표 확인)까지 마친
+브랜치는 `main`으로 merge한 뒤 다음 방법론 브랜치를 분기한다.
 
 ### Phase 4 - 비교 프레임워크
 
