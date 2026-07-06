@@ -2,36 +2,37 @@
 
 이 문서는 `docs/` 폴더에 작성할 10개 방법론 상세 보고서의 문서명, 섹션 수준 목차,
 공통 템플릿을 정의한다. 실제 문서 작성 시 이 계획을 따르고, 작성 완료 시 아래
-체크리스트를 갱신한다. 방법론 개요와 우선순위는 `roi-corner-detection-models.md`,
+체크리스트를 갱신한다. 방법론 개요와 우선순위는 `common/roi-corner-detection-models.md`,
 제약 F1-F8과 모듈 시그니처는 `README.md`(SSOT)를 참조한다.
 
 ## 1. 문서 목록
 
 파일명은 우선순위 2자리 넘버링 뒤에 방법론 full name의 kebab-case를 붙인
-`{NN}_{full-name}.md` 형식을 적용한다.
+`{NN}_{full-name}.md` 형식을 적용하며 `docs/models/`에 둔다.
 
 | 우선순위 | 코드 | 문서명 | 작성 상태 |
 |---:|---|---|---|
-| 1 | `direct` | `01_direct-coordinate-regression.md` | [x] |
-| 2 | `seg` | `02_segmentation-corner.md` | [ ] |
-| 3 | `detect` | `03_bbox-keypoint-detection.md` | [ ] |
-| 4 | `heatmap` | `04_heatmap-keypoint-detection.md` | [ ] |
-| 5 | `hybrid` | `05_dl-classical-cv-hybrid.md` | [ ] |
-| 6 | `line` | `06_line-intersection.md` | [ ] |
-| 7 | `doc` | `07_document-pretrained.md` | [ ] |
-| 8 | `homography` | `08_homography-regression.md` | [ ] |
-| 9 | `foundation` | `09_foundation-adapter.md` | [ ] |
-| 10 | `gcn` | `10_polygon-gcn.md` | [ ] |
+| 1 | `direct` | `models/01_direct-coordinate-regression.md` | [x] |
+| 2 | `seg` | `models/02_segmentation-corner.md` | [ ] |
+| 3 | `detect` | `models/03_bbox-keypoint-detection.md` | [ ] |
+| 4 | `heatmap` | `models/04_heatmap-keypoint-detection.md` | [ ] |
+| 5 | `hybrid` | `models/05_dl-classical-cv-hybrid.md` | [ ] |
+| 6 | `line` | `models/06_line-intersection.md` | [ ] |
+| 7 | `doc` | `models/07_document-pretrained.md` | [ ] |
+| 8 | `homography` | `models/08_homography-regression.md` | [ ] |
+| 9 | `foundation` | `models/09_foundation-adapter.md` | [ ] |
+| 10 | `gcn` | `models/10_polygon-gcn.md` | [ ] |
 
-방법론별 보고서 외에 다음 공통 문서를 둔다. 공통 문서는 넘버링을 적용하지 않는다.
+방법론별 보고서 외에 다음 공통 문서를 `docs/common/`에 둔다. 공통 문서는 넘버링을 적용하지 않는다.
 
 | 문서명 | 내용 | 작성 상태 |
 |---|---|---|
-| `roi-corner-detection-models.md` | 10개 방법론 비교 (표 + 방법론별 요약 + F1-F8 매핑) | [x] |
-| `roi-corner-detection-metrics.md` | 평가 메트릭 상세 (Polygon IoU, MCD, MaxCD, Reprojection Error) | [x] |
+| `common/roi-corner-detection-models.md` | 10개 방법론 비교 (표 + 방법론별 요약 + F1-F8 매핑) | [x] |
+| `common/roi-corner-detection-metrics.md` | 평가 메트릭 상세 (Polygon IoU, MCD, MaxCD, Reprojection Error) | [x] |
+| `common/roi-corner-detection-data-pipeline.md` | 데이터셋 라벨링 방법론(labelme, polygon vs mask, CSV 스키마 근거) + 3단계 학습 데이터 전략 + 합성 Fringe 패턴 생성 수식 | [x] |
 
-공통 문서 중 `roi-corner-detection-metrics.md`는 방법론 보고서와 동일한 작성 규칙
-(딥러닝 초보자 대상, 수식 적극 사용, 레거시 비인용)을 따른다.
+공통 문서 중 `roi-corner-detection-metrics.md`, `roi-corner-detection-data-pipeline.md`는
+방법론 보고서와 동일한 작성 규칙(딥러닝 초보자 대상, 수식 적극 사용, 레거시 비인용)을 따른다.
 
 ## 2. 공통 섹션 목차 (템플릿)
 
@@ -108,7 +109,7 @@
   확보되기 전에는 부록 D를 문서에서 생략(언급 없이)하고, 결과 확보 후 섹션을 추가한다.
 - 코드 블록의 시그니처는 README.md(SSOT)와 일치시킨다. 불일치 발견 시 README.md를
   먼저 갱신한 뒤 보고서를 작성한다.
-- 문서 간 중복 서술을 피한다. 방법론 간 비교는 `roi-corner-detection-models.md`가
+- 문서 간 중복 서술을 피한다. 방법론 간 비교는 `common/roi-corner-detection-models.md`가
   담당하고, 각 보고서는 해당 방법론의 상세만 다룬다.
 - 작성 순서는 우선순위 순(1 -> 10)을 따르되, 해당 방법론의 구현 Phase 완료 후 작성을
   원칙으로 한다 (PLAN.md Phase 참조).

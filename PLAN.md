@@ -31,7 +31,7 @@ MNIST 프로젝트의 "프레임워크 축 통합"과는 다르지만, 레거시
    keypoint detector. 카탈로그 G의 DETR 방식이 아님). 4-10은 레거시 카탈로그의 나머지
    7개(B, I, D, J, E, H, F)를 프로젝트 적합도 순으로 재정렬 - 4.heatmap(B), 5.hybrid(I),
    6.line(D), 7.doc(J), 8.homography(E), 9.foundation(H), 10.gcn(F).
-   상세 비교는 `docs/roi-corner-detection-models.md` 참조
+   상세 비교는 `docs/common/roi-corner-detection-models.md` 참조
 2. **git 저장소**: `roi-corner-detection`는 워크스페이스와 별도로 자체 git 저장소로 init
    (GitHub remote 연결은 사용자가 추후 직접 진행)
 3. **레거시 코드 재사용 방식**: 레거시 프로젝트의 Stage1-2 코드는 참조만 하고 완전 재구현
@@ -68,6 +68,7 @@ roi-corner-detection/
 │   └── run.py
 ├── notebooks/
 │   ├── data/
+│   ├── models/
 │   └── results/
 ├── outputs/
 │   ├── detect/ direct/ doc/ foundation/ gcn/ heatmap/ homography/ hybrid/ line/ seg/
@@ -205,7 +206,7 @@ Phase 0(폴더/파일 구조 확정, README 시그니처 재검토)을 완료했
 이후 세션에서 `src/utils/homography.py`(`estimate_homography`, `reproject_points`),
 `src/data/images.py`(코너 없는 이미지 폴더 스캔), `src/metrics/`(`BaseMetric` 및
 `PolygonIoU`/`MCD`/`MaxCD`/`ReprojectionError`/`PCK` 클래스)까지 구현하고 검증을
-마쳤다. 이어서 EDA 노트북(`notebooks/eda-{midv2020,smartdoc}-{dataset,transforms}.ipynb`)
+마쳤다. 이어서 EDA 노트북(`notebooks/data/eda-{midv2020,smartdoc}-{dataset,transforms}.ipynb`)
 작업 중 `src/utils/plot.py`의 `show_samples`를 재작성했다: `get_samples()`/`Dataset`이
 반환하는 `(N,3,H,W)` 텐서를 직접 받도록 시그니처를 바꾸고(`load_raw_samples`,
 `apply_transform` 제거), `denormalize=False` 인자와 `Polygon(fill=False)` 코너 오버레이,

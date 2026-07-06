@@ -29,7 +29,7 @@ F1-F8 제약) 적합도 순으로 재정렬한 결과이다. `seg`는 기존에 
 공통 `Dataloader`(`src/data/dataloader.py`)로부터 입력을 받고, 방법론별 전용
 `preprocessor.py`가 표준 코너 `(N, 4, 2)`를 해당 방법론의 학습 타깃으로 변환한다.
 방법론 간 성능 비교는 `scripts/benchmark.py`가 담당한다.
-10개 방법론의 상세 비교는 `docs/roi-corner-detection-models.md`를 참조한다.
+10개 방법론의 상세 비교는 `docs/common/roi-corner-detection-models.md`를 참조한다.
 
 ## 2. 핵심 제약 (F1-F8)
 
@@ -53,6 +53,9 @@ F1-F5는 레거시 프로젝트 `_project/sources/P1-project-overview.md` 3절(P
 1. **Pre-training**: SmartDoc + MIDV-2020 (공개 데이터, 일반 코너 검출 학습)
 2. **Domain Adaptation**: 합성 Fringe 패턴 이미지 (검사 도메인 적응, `src/data/synthetic.py`로 생성)
 3. **Fine-tuning**: 실측 PMD 데이터 (소량, 최종 정밀도 확보)
+
+데이터 레이블링 방법론, 3단계 학습 전략의 근거, 합성 Fringe 패턴 생성 수식은
+`docs/common/roi-corner-detection-data-pipeline.md`를 참조한다.
 
 ## 4. 평가 메트릭
 
@@ -82,7 +85,7 @@ PCK 실패(0)로 집계된다. 호모그래피 추정이 불가능한 퇴화 표
 등)은 Reprojection Error 집계에서 제외하고 실패 건수로 별도 집계한다.
 
 6개 메트릭 각각의 수식, 계산 절차, 해석 방법과 조합 해석 패턴은
-`docs/roi-corner-detection-metrics.md`를 참조한다.
+`docs/common/roi-corner-detection-metrics.md`를 참조한다.
 
 ## 5. 폴더 구조
 
@@ -94,6 +97,7 @@ roi-corner-detection/
 │   └── run.py
 ├── notebooks/
 │   ├── data/
+│   ├── models/
 │   └── results/
 ├── outputs/
 │   ├── detect/

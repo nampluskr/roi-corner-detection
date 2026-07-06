@@ -195,5 +195,5 @@ MNIST 프로젝트 세부 참조 대상:
 
 - [[README]] - SSOT: 방법론 카탈로그, 폴더 구조, 모듈 시그니처
 - [[PLAN]] - Phase별 작업 계획 및 검증 방법
-- [[roi-corner-detection-models]] - 10개 방법론 상세 비교 (`docs/roi-corner-detection-models.md`)
+- [[roi-corner-detection-models]] - 10개 방법론 상세 비교 (`docs/common/roi-corner-detection-models.md`)
 - [[docs-plan]] - 방법론 상세 보고서 문서명/목차/템플릿 (`docs/docs-plan.md`)
