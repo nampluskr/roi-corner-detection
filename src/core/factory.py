@@ -63,3 +63,11 @@ def get_samples(split, csv_path, image_size=224, has_corners=True, split_ratio=0
         return torch.stack(samples)
     images, corners = zip(*samples)
     return torch.stack(list(images)), torch.stack(list(corners))
+
+
+def get_wrapper(method, device=None, **kwargs):
+    """Return a method-specific wrapper built with the given device and kwargs."""
+    if method == "direct":
+        from src.models.direct.wrapper import DirectWrapper
+        return DirectWrapper(device=device, **kwargs)
+    raise NotImplementedError("method not yet implemented: %s" % method)
