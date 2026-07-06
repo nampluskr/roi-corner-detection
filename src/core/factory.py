@@ -10,9 +10,9 @@ from src.data.transforms import (
 )
 
 
-def get_transform(split, input_size=224):
+def get_transform(split, image_size=224):
     """Return a Compose of (image, corners) transforms for the given split."""
-    transforms = []
+    transforms = [Resize((image_size, image_size))]
     if split == "train":
         transforms += [
             RandomHorizontalFlip(p=0.5),
@@ -21,40 +21,38 @@ def get_transform(split, input_size=224):
             ColorJitter(brightness=0.2, contrast=0.2),
             GaussianBlur(kernel_size=3, sigma=(0.1, 2.0)),
         ]
-    transforms += [
-        Resize((input_size, input_size)),
-        ToTensor(),
-        Normalize(),
-    ]
+    transforms += [ToTensor(), Normalize()]
     return Compose(transforms)
 
 
-def get_dataset(split, csv_path, input_size=224, has_corners=True):
-    """Return a CornerDataset or ImageDataset for the given split, built from csv_path."""
+def get_dataset(split, csv_path, image_size=224, has_corners=True, split_ratio=0.8, seed=42):
+    """Return the train or valid split of a CornerDataset/ImageDataset with split-specific transform."""
     dataset_cls = CornerDataset if has_corners else ImageDataset
-    return dataset_cls(csv_path, transform=get_transform(split, input_size))
+    dataset = dataset_cls(csv_path)
+    train_dataset, valid_dataset = dataset.split(split_ratio, seed)
+    subset = train_dataset if split == "train" else valid_dataset
+    return subset.set_transform(get_transform(split, image_size))
 
 
-def get_dataloader(split, csv_path, input_size=224, batch_size=16, seed=42, has_corners=True):
+def get_dataloader(split, csv_path, image_size=224, has_corners=True, split_ratio=0.8, seed=42,
+                    batch_size=32):
     """Return a Dataloader for the given split, built from csv_path with split-specific transform."""
-    return Dataloader(
-        split,
-        dataset=get_dataset(split, csv_path, input_size, has_corners=has_corners),
-        batch_size=batch_size,
-        seed=seed,
-    )
+    dataset = get_dataset(split, csv_path, image_size=image_size,
+                          has_corners=has_corners, split_ratio=split_ratio, seed=seed)
+    return Dataloader(split, dataset, batch_size=batch_size, seed=seed)
 
 
-def get_samples(split, csv_path, input_size=224, indices=None, num_samples=None,
-                shuffle=False, seed=42, has_corners=True):
+def get_samples(split, csv_path, image_size=224, has_corners=True, split_ratio=0.8, seed=42,
+                indices=None, num_samples=None, shuffle=False):
     """Return a batch of samples selected by indices or count as stacked tensors."""
-    dataset = get_dataset(split, csv_path, input_size, has_corners=has_corners)
+    dataset = get_dataset(split, csv_path, image_size=image_size,
+                          has_corners=has_corners, split_ratio=split_ratio, seed=seed)
 
     if indices is not None:
         samples = [dataset[i] for i in indices]
     elif shuffle:
-        sample_dataset = dataset.subset(num_samples if num_samples is not None else len(dataset), seed=seed)
-        samples = [sample_dataset[i] for i in range(len(sample_dataset))]
+        subset = dataset.subset(num_samples if num_samples is not None else len(dataset), seed=seed)
+        samples = [subset[i] for i in range(len(subset))]
     else:
         idx = list(range(len(dataset)))
         if num_samples is not None:
