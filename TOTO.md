@@ -5,6 +5,13 @@
 - [ ] notebooks/ 폴더 정리 -> notebooks/models, dataset/dataloader 평가용
 - [ ] docs/ 폴더내 문서 줄바꿈 정리 -> 강제 줄바꿈 제거
 
+## 코드 수정 공통
+
+- [ ] metrics = {} vs. metrics = None
+- [ ] raw_output vs logits
+- [ ] trainer tqdm 추가
+- [ ] logger 추가
+
 ## 모델 구현 및 평가
 
 각 모델별 branch 분기 (최종 10개) 만들어 개별 모델 작성 (CLAUDE.md/AGENTS.md/PLAN.md에

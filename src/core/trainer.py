@@ -3,6 +3,9 @@
 import os
 import json
 import numpy as np
+from tqdm import tqdm
+
+from src.core.factory import get_logger
 
 
 def format_result(result):
@@ -13,26 +16,36 @@ def format_result(result):
 class Trainer:
     """Epoch-level training and evaluation loop for a wrapper's train_step/eval_step."""
 
-    def __init__(self, wrapper, output_dir=None):
+    def __init__(self, wrapper, metrics=None, output_dir=None):
         self.wrapper = wrapper
         self.output_dir = output_dir
+        self.logger = get_logger("trainer", output_dir)
+        if metrics is not None:
+            self.wrapper.set_metrics(metrics)
 
     def train(self, dataloader):
-        result = {}
-        for images, corners in dataloader:
-            batch = self.wrapper.train_step(images, corners)
-            for k, v in batch.items():
-                result.setdefault(k, []).append(v)
-        return {k: float(np.mean(v)) for k, v in result.items()}
+        self.wrapper.reset_metrics()
+        losses = []
+        progress = tqdm(dataloader, desc="train", leave=False, ascii=True)
+        for images, targets in progress:
+            batch = self.wrapper.train_step(images, targets)
+            losses.append(batch["loss"])
+            progress.set_postfix(loss=batch["loss"])
+        result = {"loss": float(np.mean(losses))}
+        result.update(self.wrapper.compute_metrics())
+        return result
 
     def evaluate(self, dataloader):
-        result = {}
-        for images, corners in dataloader:
-            batch = self.wrapper.eval_step(images, corners)
-            for k, v in batch.items():
-                if isinstance(v, (int, float)):
-                    result.setdefault(k, []).append(v)
-        return {k: float(np.mean(v)) for k, v in result.items()}
+        self.wrapper.reset_metrics()
+        losses = []
+        progress = tqdm(dataloader, desc="valid", leave=False, ascii=True)
+        for images, targets in progress:
+            batch = self.wrapper.eval_step(images, targets)
+            losses.append(batch["loss"])
+            progress.set_postfix(loss=batch["loss"])
+        result = {"loss": float(np.mean(losses))}
+        result.update(self.wrapper.compute_metrics())
+        return result
 
     def fit(self, train_loader, valid_loader=None, max_epochs=10):
         history = {"train": {}}
@@ -50,7 +63,7 @@ class Trainer:
                 for k, v in valid_result.items():
                     history["valid"].setdefault(k, []).append(v)
                 log += " | %s" % format_result(valid_result)
-            print(log)
+            self.logger.info(log)
         return history
 
     def save(self, history, output_dir=None):

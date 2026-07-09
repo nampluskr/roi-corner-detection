@@ -6,15 +6,51 @@ import torch
 class BaseWrapper:
     """Base class resolving device placement and exposing train/eval/predict step methods."""
 
-    def __init__(self, model, optimizer=None, device=None):
-        self.device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    def __init__(self, model, optimizer=None, preprocessor=None, postprocessor=None,
+                 loss_fn=None, metrics=None, device=None):
+        self.set_device(device)
         self.model = model.to(self.device)
+        self.set_optimizer(optimizer)
+        self.set_preprocessor(preprocessor)
+        self.set_postprocessor(postprocessor)
+        self.set_loss_fn(loss_fn)
+        self.set_metrics(metrics)
+
+    def set_device(self, device):
+        self.device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        if hasattr(self, "model"):
+            self.model = self.model.to(self.device)
+
+    def set_optimizer(self, optimizer):
         self.optimizer = optimizer
 
-    def train_step(self, images, corners):
+    def set_preprocessor(self, preprocessor):
+        self.preprocessor = preprocessor
+
+    def set_postprocessor(self, postprocessor):
+        self.postprocessor = postprocessor
+
+    def set_loss_fn(self, loss_fn):
+        self.loss_fn = loss_fn
+
+    def set_metrics(self, metrics=None):
+        self.metrics = metrics or {}
+
+    def reset_metrics(self):
+        for metric in self.metrics.values():
+            metric.reset()
+
+    def update_metrics(self, preds, targets):
+        for metric in self.metrics.values():
+            metric.update(preds, targets)
+
+    def compute_metrics(self):
+        return {name: metric.compute() for name, metric in self.metrics.items()}
+
+    def train_step(self, images, targets):
         raise NotImplementedError
 
-    def eval_step(self, images, corners):
+    def eval_step(self, images, targets):
         raise NotImplementedError
 
     def predict_step(self, images):

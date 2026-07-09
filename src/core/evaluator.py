@@ -2,65 +2,43 @@
 
 import os
 import json
-import numpy as np
+from tqdm import tqdm
 
+from src.core.factory import get_logger
+from src.core.trainer import format_result
 from src.metrics.polygon_iou import PolygonIoU
 from src.metrics.mcd import MCD
 from src.metrics.max_cd import MaxCD
 from src.metrics.reprojection_error import ReprojectionError
 from src.metrics.pck import PCK
-from src.utils.geometry import is_invalid_corners
+from src.metrics.success_rate import SuccessRate
 
-REF_CORNERS = np.array([[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]], dtype=np.float64)
-PCK_TAU = 0.02
+DEFAULT_METRICS = {
+    "iou": PolygonIoU(),
+    "mcd": MCD(),
+    "max_cd": MaxCD(),
+    "reproj_error": ReprojectionError(),
+    "pck": PCK(),
+    "sr": SuccessRate(),
+}
 
 
 class Evaluator:
     """Dataloader-level accuracy evaluation (IoU, MCD, MaxCD, reprojection error, SR, PCK)."""
 
-    def __init__(self, wrapper, output_dir=None):
+    def __init__(self, wrapper, metrics=None, output_dir=None):
         self.wrapper = wrapper
         self.output_dir = output_dir
-        self.iou_fn = PolygonIoU()
-        self.mcd_fn = MCD()
-        self.max_cd_fn = MaxCD()
-        self.reproj_fn = ReprojectionError()
-        self.pck_fn = PCK()
+        self.logger = get_logger("evaluator", output_dir)
+        self.wrapper.set_metrics(metrics if metrics is not None else DEFAULT_METRICS)
 
     def evaluate(self, dataloader):
-        totals = {"iou": 0.0, "mcd": 0.0, "max_cd": 0.0, "reproj_error": 0.0, "pck": 0.0}
-        success_count = 0
-        reproj_count = 0
-        total_count = 0
-
-        for images, corners in dataloader:
-            result = self.wrapper.eval_step(images, corners)
-            pred_batch = result["corners_pred"]
-            gt_batch = corners.numpy()
-
-            for pred, gt in zip(pred_batch, gt_batch):
-                total_count += 1
-                if np.isnan(pred).any():
-                    continue
-                success_count += 1
-                totals["iou"] += self.iou_fn(pred, gt)
-                totals["mcd"] += self.mcd_fn(pred, gt)
-                totals["max_cd"] += self.max_cd_fn(pred, gt)
-                totals["pck"] += float(self.pck_fn(pred, gt, PCK_TAU))
-
-                if is_invalid_corners(pred) or is_invalid_corners(gt):
-                    continue
-                reproj_count += 1
-                totals["reproj_error"] += self.reproj_fn(pred, gt, REF_CORNERS)
-
-        return {
-            "iou": totals["iou"] / success_count if success_count > 0 else 0.0,
-            "mcd": totals["mcd"] / success_count if success_count > 0 else 0.0,
-            "max_cd": totals["max_cd"] / success_count if success_count > 0 else 0.0,
-            "reproj_error": totals["reproj_error"] / reproj_count if reproj_count > 0 else 0.0,
-            "pck": totals["pck"] / total_count if total_count > 0 else 0.0,
-            "sr": success_count / total_count if total_count > 0 else 0.0,
-        }
+        self.wrapper.reset_metrics()
+        for images, targets in tqdm(dataloader, desc="eval", leave=False, ascii=True):
+            self.wrapper.eval_step(images, targets)
+        result = self.wrapper.compute_metrics()
+        self.logger.info(format_result(result))
+        return result
 
     def save(self, result, output_dir=None):
         output_dir = output_dir or self.output_dir
