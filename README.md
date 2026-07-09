@@ -238,6 +238,11 @@ def show_samples(images, corners=None, ncols=5, title=None, denormalize=False, c
 # denormalize: True면 Denormalize()(IMAGENET_MEAN/STD 기본값)를 적용 후 clamp(0,1)
 # cell_size: 개별 subplot 한 칸의 (width, height) 크기(inch). figsize = (ncols*w, nrows*h)
 # 코너가 주어지면 TL/TR/BR/BL 순서로 점 + 라벨(고정 오프셋) + Polygon(fill=False) 외곽선을 그린다
+
+def show_history(history, title=None): ...
+# history["train"]["key"] = [val0, val1, ...] 형태의 에폭별 메트릭 스칼라
+# history["valid"]["key"]는 선택사항. 각 key마다 subplot 하나씩 train/valid 곡선을 겹쳐 그림
+# title: 선택사항, 그래프 최상단에 표시할 제목 문자열
 ```
 
 ### 6.2 `src/data`

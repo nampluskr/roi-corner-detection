@@ -49,3 +49,27 @@ def show_samples(images, corners=None, ncols=5, title=None, denormalize=False, c
         fig.suptitle(title, fontsize=13)
     plt.tight_layout()
     plt.show()
+
+
+def show_history(history, title=None):
+    """Plot per-epoch train (and optional valid) curves for each key in history."""
+    train = history.get("train", {})
+    valid = history.get("valid", {})
+    keys = list(train.keys())
+
+    fig, axes = plt.subplots(1, len(keys), figsize=(5 * len(keys), 4))
+    if len(keys) == 1:
+        axes = [axes]
+
+    for ax, key in zip(axes, keys):
+        ax.plot(train[key], lw=2, label="train")
+        if key in valid:
+            ax.plot(valid[key], lw=2, label="valid")
+        ax.set_title(key)
+        ax.set_xlabel("epoch")
+        ax.legend()
+
+    if title is not None:
+        fig.suptitle(title, fontsize=13)
+    fig.tight_layout()
+    plt.show()
