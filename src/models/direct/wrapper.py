@@ -1,4 +1,4 @@
-# src/models/direct/wrapper.py: composes DirectModel/DirectPreprocessor/DirectPostprocessor/DirectLoss
+# src/models/direct/wrapper.py: composes DirectModel/DirectPreprocessor/DirectPostprocessor and WingLoss
 
 import torch
 
@@ -6,7 +6,7 @@ from src.models.base.base_wrapper import BaseWrapper
 from src.models.direct.model import DirectModel
 from src.models.direct.preprocessor import DirectPreprocessor
 from src.models.direct.postprocessor import DirectPostprocessor
-from src.models.direct.loss import DirectLoss
+from src.losses.wing_loss import WingLoss
 from src.metrics.polygon_iou import PolygonIoU
 
 
@@ -14,15 +14,15 @@ class DirectWrapper(BaseWrapper):
     """Wraps DirectModel training/evaluation/inference behind the shared Trainer/Evaluator/Predictor interface."""
 
     def __init__(self, backbone="resnet18", optimizer=None, preprocessor=None,
-                 postprocessor=None, loss_fn=None, metrics=None, device=None):
+                 postprocessor=None, losses=None, metrics=None, device=None):
         model = DirectModel(backbone=backbone, pretrained=True)
-        super().__init__(model, optimizer=optimizer, 
-                         preprocessor=preprocessor, postprocessor=postprocessor, 
-                         loss_fn=loss_fn, metrics=metrics, device=device)
+        super().__init__(model, optimizer=optimizer,
+                         preprocessor=preprocessor, postprocessor=postprocessor,
+                         losses=losses, metrics=metrics, device=device)
         self.set_optimizer(self.optimizer or torch.optim.Adam(self.model.parameters(), lr=1e-3))
         self.set_preprocessor(self.preprocessor or DirectPreprocessor())
         self.set_postprocessor(self.postprocessor or DirectPostprocessor())
-        self.set_loss_fn(self.loss_fn or DirectLoss())
+        self.set_losses(self.losses or {"loss": WingLoss(apply_sigmoid=True)})
         self.set_metrics(self.metrics or {"iou": PolygonIoU()})
 
     def train_step(self, images, targets):
@@ -32,7 +32,7 @@ class DirectWrapper(BaseWrapper):
 
         self.optimizer.zero_grad()
         raw_output = self.model(images)
-        loss = self.loss_fn(raw_output, target)
+        loss = sum(loss_fn(raw_output, target) for loss_fn in self.losses.values())
         loss.backward()
         self.optimizer.step()
 
@@ -41,7 +41,7 @@ class DirectWrapper(BaseWrapper):
                 preds = self.postprocessor(raw_output).cpu().numpy()
             self.update_metrics(preds, targets.cpu().numpy())
 
-        return {"loss": loss.item()}
+        return {**self.compute_losses(), **self.compute_metrics()}
 
     @torch.no_grad()
     def eval_step(self, images, targets):
@@ -50,13 +50,14 @@ class DirectWrapper(BaseWrapper):
         target = self.preprocessor(targets)
 
         raw_output = self.model(images)
-        loss = self.loss_fn(raw_output, target)
+        for loss_fn in self.losses.values():
+            loss_fn(raw_output, target)
         preds = self.postprocessor(raw_output)
         preds_np = preds.cpu().numpy()
 
         self.update_metrics(preds_np, targets.cpu().numpy())
 
-        return {"loss": loss.item(), "preds": preds_np}
+        return {**self.compute_losses(), **self.compute_metrics()}
 
     @torch.no_grad()
     def predict_step(self, images):

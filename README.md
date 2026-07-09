@@ -23,9 +23,10 @@ F1-F8 제약) 적합도 순으로 재정렬한 결과이다. `seg`는 기존에 
 단계로 흡수되어 있던 카탈로그 C를 독립 방법론으로 승격한 것이고, `detect`는 카탈로그 G
 (DETR-style)가 아닌 바운딩박스 기반 keypoint detector로 새로 설계한 방법론이다.
 
-모든 방법론은 `src/models/base/`의 5종 추상 클래스(`BaseModel`, `BasePreprocessor`,
-`BasePostprocessor`, `BaseLoss`, `BaseWrapper`)를 구현하고, 공유 `Trainer`/`Evaluator`/
-`Predictor`(`src/core/`)와 공통 메트릭(`src/metrics/`)을 그대로 사용한다. 모든 모델은
+모든 방법론은 `src/models/base/`의 4종 추상 클래스(`BaseModel`, `BasePreprocessor`,
+`BasePostprocessor`, `BaseWrapper`)를 구현하고, 공유 `Trainer`/`Evaluator`/
+`Predictor`(`src/core/`), 공통 loss(`src/losses/`, `BaseLoss` 상속), 공통 메트릭(`src/metrics/`)을
+그대로 사용한다. 모든 모델은
 공통 `Dataloader`(`src/data/dataloader.py`)로부터 입력을 받고, 방법론별 전용
 `preprocessor.py`가 표준 코너 `(N, 4, 2)`를 해당 방법론의 학습 타깃으로 변환한다.
 방법론 간 성능 비교는 `scripts/benchmark.py`가 담당한다.
@@ -158,6 +159,9 @@ src/
 │   ├── smartdoc.py
 │   ├── synthetic.py
 │   └── transforms.py
+├── losses/
+│   ├── base_loss.py
+│   └── wing_loss.py
 ├── metrics/
 │   ├── base_metric.py
 │   ├── max_cd.py
@@ -167,36 +171,35 @@ src/
 │   └── reprojection_error.py
 ├── models/
 │   ├── base/
-│   │   ├── base_loss.py
 │   │   ├── base_model.py
 │   │   ├── base_postprocessor.py
 │   │   ├── base_preprocessor.py
 │   │   └── base_wrapper.py
 │   ├── detect/
-│   │   ├── loss.py
 │   │   ├── model.py
 │   │   ├── postprocessor.py
 │   │   ├── preprocessor.py
 │   │   └── wrapper.py
-│   ├── direct/      (동일 5개 파일: loss.py, model.py, postprocessor.py, preprocessor.py, wrapper.py)
-│   ├── doc/         (동일 5개 파일)
-│   ├── foundation/  (동일 5개 파일)
-│   ├── gcn/         (동일 5개 파일)
-│   ├── heatmap/     (동일 5개 파일)
-│   ├── homography/  (동일 5개 파일)
-│   ├── hybrid/      (동일 5개 파일)
-│   ├── line/        (동일 5개 파일)
-│   └── seg/         (동일 5개 파일)
+│   ├── direct/      (동일 4개 파일: model.py, postprocessor.py, preprocessor.py, wrapper.py)
+│   ├── doc/         (동일 4개 파일)
+│   ├── foundation/  (동일 4개 파일)
+│   ├── gcn/         (동일 4개 파일)
+│   ├── heatmap/     (동일 4개 파일)
+│   ├── homography/  (동일 4개 파일)
+│   ├── hybrid/      (동일 4개 파일)
+│   ├── line/        (동일 4개 파일)
+│   └── seg/         (동일 4개 파일)
 └── utils/
     ├── geometry.py
     └── homography.py
 ```
 
 각 방법론 폴더(`detect/direct/doc/foundation/gcn/heatmap/homography/hybrid/line/seg`)는 항상
-**같은 이름의 파일 5개**를 갖고, 내용만 방법론별로 다르다. 방법론 간 raw 출력 형태 차이는
-다음과 같다 (우선순위 순).
+**같은 이름의 파일 4개**(`model.py`, `preprocessor.py`, `postprocessor.py`, `wrapper.py`)를 갖고,
+내용만 방법론별로 다르다. loss는 `src/losses`의 재사용 클래스를 `wrapper.py`가 조합해 쓴다.
+방법론 간 raw 출력 형태 차이는 다음과 같다 (우선순위 순).
 
-| 방법론 | raw 출력 (`model.py`) | 학습 타깃 (`preprocessor.py`) | loss 대상 (`loss.py`) | 후처리 (`postprocessor.py`) |
+| 방법론 | raw 출력 (`model.py`) | 학습 타깃 (`preprocessor.py`) | loss (`src/losses`, wrapper가 조합) | 후처리 (`postprocessor.py`) |
 |---|---|---|---|---|
 | `direct` | (N, 8) 좌표 logits | 정규화 좌표 그대로 | logits vs 좌표 타깃 | sigmoid + reshape (N,4,2) |
 | `seg` | (N, 1, H, W) quad 마스크 | corners -> 채운 폴리곤 마스크 | mask vs 마스크 타깃 | findContours + approxPolyDP -> (N,4,2) |
@@ -418,7 +421,33 @@ class SuccessRate(BaseMetric):
     def __call__(self, preds, targets): ...             # -> float, 후처리가 유효한(non-NaN) 좌표를 냈는지
 ```
 
-### 6.4 `src/models/base`
+### 6.4 `src/losses`
+
+loss마다 `BaseLoss`를 상속하는 클래스 하나씩, 파일도 하나씩 분리한다. metrics와 대칭으로
+방법론/모델 이름을 넣지 않고 의미 기반 이름(`WingLoss` 등)으로 정의하며, 각 방법론 wrapper가
+`losses` dict로 조합해 쓴다. loss 고유 설정값은 `__init__` 인자로 받는다. `BaseLoss`는
+metrics처럼 reset/update/compute 상태를 갖고, 배치 평균 loss를 표본 가중으로 누적한다.
+
+**`base_loss.py`**
+
+```python
+class BaseLoss:
+    def reset(self): ...                          # loss 누적 초기화 (total/count)
+    def update(self, value, count): ...           # 배치 평균 loss를 표본 가중 누적
+    def compute(self): ...                        # -> 누적 평균 loss
+    def __call__(self, raw_output, target): ...   # forward 호출 + 자동 누적, -> scalar loss
+    def forward(self, raw_output, target): ...    # 서브클래스가 오버라이드 (NotImplementedError)
+```
+
+**`wing_loss.py`**
+
+```python
+class WingLoss(BaseLoss):
+    def __init__(self, apply_sigmoid=False, w=10.0, epsilon=2.0): ...
+    def forward(self, raw_output, target): ...    # apply_sigmoid=True면 sigmoid 후 Wing loss, -> scalar
+```
+
+### 6.5 `src/models/base`
 
 **`base_model.py`**
 
@@ -441,27 +470,21 @@ class BasePostprocessor:
     def __call__(self, raw_output): ...   # raw_output -> corners: (N, 4, 2) 표준 포맷
 ```
 
-**`base_loss.py`**
-
-```python
-class BaseLoss:
-    def __call__(self, raw_output, target): ...   # -> scalar loss
-```
-
 **`base_wrapper.py`**
 
 ```python
 class BaseWrapper:
-    def __init__(self, model, optimizer=None): ...
-    def train_step(self, images, targets): ...     # -> dict(loss=...)
-    def eval_step(self, images, targets): ...      # -> dict(loss=..., preds=(N,4,2))
+    def __init__(self, model, optimizer=None): ...   # losses/metrics는 dict (단일 loss는 {"loss": ...})
+    def train_step(self, images, targets): ...     # -> dict(loss/메트릭 누적 평균)
+    def eval_step(self, images, targets): ...      # -> dict(loss/메트릭 누적 평균)
     def predict_step(self, images): ...            # -> preds: (N, 4, 2)
 ```
 
-### 6.5 `src/models/<name>`
+### 6.6 `src/models/<name>`
 
-각 방법론 폴더는 `base/`의 5종 클래스를 상속한다. `wrapper.py`는 생성자에서 같은 폴더의
-`model`/`preprocessor`/`postprocessor`/`loss`(+옵티마이저)를 직접 구성해 감싼다.
+각 방법론 폴더는 `base/`의 4종 클래스(`BaseModel`/`BasePreprocessor`/`BasePostprocessor`/
+`BaseWrapper`)를 상속한다. `wrapper.py`는 생성자에서 같은 폴더의
+`model`/`preprocessor`/`postprocessor`(+옵티마이저)와 `src/losses`의 loss를 직접 구성해 감싼다.
 
 **예: `direct/`** (Method A)
 
@@ -479,27 +502,26 @@ class DirectPreprocessor(BasePreprocessor):
 class DirectPostprocessor(BasePostprocessor):
     def __call__(self, raw_output): ...   # (N,8) -> sigmoid -> (N,4,2)
 
-# loss.py
-class DirectLoss(BaseLoss):
-    def __call__(self, raw_output, target): ...   # sigmoid + SmoothL1 또는 Wing Loss
-
 # wrapper.py
 class DirectWrapper(BaseWrapper):
     def __init__(self, backbone="resnet18", lr=1e-3): ...
-    # 내부에서 DirectModel/DirectPreprocessor/DirectPostprocessor/DirectLoss/Adam optimizer 구성
+    # 내부에서 DirectModel/DirectPreprocessor/DirectPostprocessor/Adam optimizer 구성,
+    # losses={"loss": WingLoss(apply_sigmoid=True)} (src/losses)
 ```
 
-**나머지 방법론**은 동일한 5개 파일 패턴을 따르되 내용만 다르다 (6절 상단 표 참조).
+**나머지 방법론**은 동일한 4개 파일 패턴을 따르되 내용만 다르다 (6절 상단 표 참조).
+loss는 각 wrapper가 `src/losses`의 재사용 클래스를 `losses` dict로 조합해 쓴다
+(MSE/BCE/Dice 등은 `src/losses`에 필요 시점에 추가).
 - `heatmap/`: `HeatmapModel`(deconv head), `HeatmapPreprocessor`(corners->gaussian heatmap),
-  `HeatmapPostprocessor`(soft-argmax), `HeatmapLoss`(heatmap MSE), `HeatmapWrapper`
+  `HeatmapPostprocessor`(soft-argmax), `HeatmapWrapper`(losses: heatmap MSE)
 - `hybrid/`: `HybridModel`(MobileNetV3-UNet), `HybridPreprocessor`(corners->mask),
-  `HybridPostprocessor`(Canny+Hough+cornerSubPix), `HybridLoss`(BCE/Dice), `HybridWrapper`
+  `HybridPostprocessor`(Canny+Hough+cornerSubPix), `HybridWrapper`(losses: BCE/Dice)
 - `line/`: `LineModel`(M-LSD 또는 Canny/Hough 래퍼), `LinePreprocessor`(corners->직선 타깃),
-  `LinePostprocessor`(직선 그룹화+교점 계산, 직선 교점 연산은 이 폴더 내부에 둠), `LineLoss`, `LineWrapper`
+  `LinePostprocessor`(직선 그룹화+교점 계산, 직선 교점 연산은 이 폴더 내부에 둠), `LineWrapper`(losses: 직선 표현)
 - `doc/`: `DocModel`(DocTr/DocScanner 파인튜닝 + 어댑터), `DocPreprocessor`(direct와 동일 방식),
-  `DocPostprocessor`(direct와 동일 방식), `DocLoss`, `DocWrapper`
+  `DocPostprocessor`(direct와 동일 방식), `DocWrapper`(losses: direct와 동일)
 
-### 6.6 `src/core`
+### 6.7 `src/core`
 
 **`factory.py`**
 

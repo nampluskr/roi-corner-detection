@@ -7,13 +7,13 @@ class BaseWrapper:
     """Base class resolving device placement and exposing train/eval/predict step methods."""
 
     def __init__(self, model, optimizer=None, preprocessor=None, postprocessor=None,
-                 loss_fn=None, metrics=None, device=None):
+                 losses=None, metrics=None, device=None):
         self.set_device(device)
         self.model = model.to(self.device)
         self.set_optimizer(optimizer)
         self.set_preprocessor(preprocessor)
         self.set_postprocessor(postprocessor)
-        self.set_loss_fn(loss_fn)
+        self.set_losses(losses)
         self.set_metrics(metrics)
 
     def set_device(self, device):
@@ -30,11 +30,15 @@ class BaseWrapper:
     def set_postprocessor(self, postprocessor):
         self.postprocessor = postprocessor
 
-    def set_loss_fn(self, loss_fn):
-        self.loss_fn = loss_fn
+    def set_losses(self, losses=None):
+        self.losses = losses or {}
 
     def set_metrics(self, metrics=None):
         self.metrics = metrics or {}
+
+    def reset_losses(self):
+        for loss_fn in self.losses.values():
+            loss_fn.reset()
 
     def reset_metrics(self):
         for metric in self.metrics.values():
@@ -43,6 +47,9 @@ class BaseWrapper:
     def update_metrics(self, preds, targets):
         for metric in self.metrics.values():
             metric.update(preds, targets)
+
+    def compute_losses(self):
+        return {name: loss_fn.compute() for name, loss_fn in self.losses.items()}
 
     def compute_metrics(self):
         return {name: metric.compute() for name, metric in self.metrics.items()}

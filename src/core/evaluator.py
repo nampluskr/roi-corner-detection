@@ -33,6 +33,7 @@ class Evaluator:
         self.wrapper.set_metrics(metrics if metrics is not None else DEFAULT_METRICS)
 
     def evaluate(self, dataloader):
+        self.wrapper.reset_losses()
         self.wrapper.reset_metrics()
         for images, targets in tqdm(dataloader, desc="eval", leave=False, ascii=True):
             self.wrapper.eval_step(images, targets)

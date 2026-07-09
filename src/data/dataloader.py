@@ -7,7 +7,7 @@ class Dataloader(torch.utils.data.DataLoader):
     """Batches samples from a dataset; batch shape follows the dataset's __getitem__."""
 
     def __init__(self, split, dataset, batch_size=16, seed=42):
-        num_workers = 4 if split == "train" else 0
+        num_workers = 8 if split == "train" else 0
         generator = torch.Generator()
         generator.manual_seed(seed)
         super().__init__(

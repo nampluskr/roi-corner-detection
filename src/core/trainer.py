@@ -2,7 +2,6 @@
 
 import os
 import json
-import numpy as np
 from tqdm import tqdm
 
 from src.core.factory import get_logger
@@ -10,7 +9,7 @@ from src.core.factory import get_logger
 
 def format_result(result):
     """Format a result dict as a space-separated key=value string."""
-    return " ".join("%s=%.4f" % (k, v) for k, v in result.items())
+    return " ".join("%s=%.3f" % (k, v) for k, v in result.items())
 
 
 class Trainer:
@@ -24,26 +23,24 @@ class Trainer:
             self.wrapper.set_metrics(metrics)
 
     def train(self, dataloader):
+        self.wrapper.reset_losses()
         self.wrapper.reset_metrics()
-        losses = []
         progress = tqdm(dataloader, desc="train", leave=False, ascii=True)
         for images, targets in progress:
             batch = self.wrapper.train_step(images, targets)
-            losses.append(batch["loss"])
-            progress.set_postfix(loss=batch["loss"])
-        result = {"loss": float(np.mean(losses))}
+            progress.set_postfix_str(format_result(batch))
+        result = self.wrapper.compute_losses()
         result.update(self.wrapper.compute_metrics())
         return result
 
     def evaluate(self, dataloader):
+        self.wrapper.reset_losses()
         self.wrapper.reset_metrics()
-        losses = []
         progress = tqdm(dataloader, desc="valid", leave=False, ascii=True)
         for images, targets in progress:
             batch = self.wrapper.eval_step(images, targets)
-            losses.append(batch["loss"])
-            progress.set_postfix(loss=batch["loss"])
-        result = {"loss": float(np.mean(losses))}
+            progress.set_postfix_str(format_result(batch))
+        result = self.wrapper.compute_losses()
         result.update(self.wrapper.compute_metrics())
         return result
 
