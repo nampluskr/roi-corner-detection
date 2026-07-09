@@ -245,6 +245,13 @@ def show_history(history, title=None): ...
 # title: 선택사항, 그래프 최상단에 표시할 제목 문자열
 ```
 
+**`io.py`**
+
+```python
+def save_model(model, checkpoint): ...   # model.state_dict()를 checkpoint(.pth 경로)에 저장
+def load_model(model, checkpoint): ...   # checkpoint(.pth 경로)에서 state_dict를 로드해 model에 적용
+```
+
 ### 6.2 `src/data`
 
 **`dataset.py`**
@@ -373,40 +380,43 @@ def generate_fringe_image(A, B, f, phi, direction="horizontal"): ...
 
 ### 6.3 `src/metrics`
 
-메트릭마다 `BaseMetric`을 상속하는 클래스 하나씩, 파일도 하나씩 분리한다. 모든
-메트릭은 `__call__(pred_corners, gt_corners, ...)`로 함수처럼 호출한다.
+메트릭마다 `BaseMetric`을 상속하는 클래스 하나씩, 파일도 하나씩 분리한다. 계산 시그니처는
+방법론/도메인 이름을 넣지 않고 `__call__(preds, targets)`로 일반화하며, 함수처럼 호출한다.
+메트릭 고유의 설정값(`ReprojectionError`의 `ref_corners`, `PCK`의 `tau`)은 `__call__` 인자가
+아니라 `__init__` 인자로 받는다.
 
 **`base_metric.py`**
 
 ```python
 class BaseMetric:
-    def __call__(self, pred_corners, gt_corners): ...   # 서브클래스가 오버라이드 (NotImplementedError)
+    def update(self, preds, targets): ...               # 배치를 순회하며 표본별 값을 누적
+    def __call__(self, preds, targets): ...             # 서브클래스가 오버라이드 (NotImplementedError)
 ```
 
-**`polygon_iou.py` / `mcd.py` / `max_cd.py` / `reprojection_error.py` / `pck.py`**
+**`polygon_iou.py` / `mcd.py` / `max_cd.py` / `reprojection_error.py` / `pck.py` / `success_rate.py`**
 
 ```python
 class PolygonIoU(BaseMetric):
-    def __call__(self, pred_corners, gt_corners): ...
+    def __call__(self, preds, targets): ...
     # (4,2), (4,2) -> float, Sutherland-Hodgman 클리핑 + utils.geometry.polygon_area 사용
 
 class MCD(BaseMetric):
-    def __call__(self, pred_corners, gt_corners): ...   # -> float, Mean Corner Distance
+    def __call__(self, preds, targets): ...             # -> float, Mean Corner Distance
 
 class MaxCD(BaseMetric):
-    def __call__(self, pred_corners, gt_corners): ...   # -> float, Max Corner Distance
+    def __call__(self, preds, targets): ...             # -> float, Max Corner Distance
 
 class ReprojectionError(BaseMetric):
-    def __call__(self, pred_corners, gt_corners, ref_corners): ...
-    # -> float, ref_corners: 정규 사각형 기준점. utils.homography 사용
+    def __init__(self, ref_corners=None): ...           # ref_corners: 정규 사각형 기준점
+    def __call__(self, preds, targets): ...             # -> float, utils.homography 사용
 
 class PCK(BaseMetric):
-    def __call__(self, pred_corners, gt_corners, tau): ...
-    # -> bool, MaxCD <= tau 표본 단위 성공 여부 (내부적으로 MaxCD 재사용)
-```
+    def __init__(self, tau=0.02): ...
+    def __call__(self, preds, targets): ...             # -> bool, MaxCD <= tau 성공 여부 (MaxCD 재사용)
 
-> SR(Success Rate)은 `src/metrics/` 클래스가 아니라 postprocessor의 성공 플래그를
-> Evaluator가 집계하는 지표이다.
+class SuccessRate(BaseMetric):
+    def __call__(self, preds, targets): ...             # -> float, 후처리가 유효한(non-NaN) 좌표를 냈는지
+```
 
 ### 6.4 `src/models/base`
 
@@ -443,9 +453,9 @@ class BaseLoss:
 ```python
 class BaseWrapper:
     def __init__(self, model, optimizer=None): ...
-    def train_step(self, images, corners): ...    # -> dict(loss=...)
-    def eval_step(self, images, corners): ...      # -> dict(loss=..., corners_pred=(N,4,2))
-    def predict_step(self, images): ...            # -> corners_pred: (N, 4, 2)
+    def train_step(self, images, targets): ...     # -> dict(loss=...)
+    def eval_step(self, images, targets): ...      # -> dict(loss=..., preds=(N,4,2))
+    def predict_step(self, images): ...            # -> preds: (N, 4, 2)
 ```
 
 ### 6.5 `src/models/<name>`
@@ -502,6 +512,7 @@ def get_samples(split, csv_path, input_size=512, indices=None, num_samples=None,
                 shuffle=False, seed=42, has_corners=True): ...
 # -> has_corners=True: (images, corners) 스택된 텐서 튜플, False: images 스택된 텐서 하나
 def get_wrapper(method, device=None, **kwargs): ...   # method: direct|heatmap|hybrid|line|doc
+def get_logger(name, output_dir=None): ...   # 터미널 + output_dir 지정 시 run.log 파일
 ```
 
 **`trainer.py`**
