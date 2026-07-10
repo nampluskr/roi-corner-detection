@@ -4,10 +4,10 @@
 
 ## 1. 프로젝트 개요
 
-평면 사각형 객체의 4개 코너 좌표를 검출하는 10개 방법론(direct, seg, detect, heatmap,
-hybrid, line, doc, homography, foundation, gcn)을 공유 데이터/평가 파이프라인 위에서
+평면 사각형 객체의 4개 코너 좌표를 검출하는 10개 방법론(direct, homography, heatmap, seg,
+hybrid, detect, gcn, doc, foundation, line)을 공유 데이터/평가 파이프라인 위에서
 구현하고 성능을 비교하는 단일 PyTorch 프로젝트이다.
-방법론 목록과 우선순위, 제약(F1-F8)은 `README.md`를 참조한다.
+방법론 목록과 구현 순서, 제약(F1-F8)은 `README.md`를 참조한다.
 
 ## 2. 통합 원칙
 
@@ -41,7 +41,6 @@ experiments/
 notebooks/
 outputs/
 scripts/
-├── benchmark.py
 ├── config.py
 ├── create_data.py
 ├── evaluate.py
@@ -102,20 +101,20 @@ src/
 각 방법론 폴더(`detect/direct/doc/foundation/gcn/heatmap/homography/hybrid/line/seg`)는 항상
 **같은 이름의 파일 4개**(`model.py`, `preprocessor.py`, `postprocessor.py`, `wrapper.py`)를
 가지며, 내용만 방법론별로 다르다. loss는 `src/losses/`의 재사용 클래스를 `wrapper.py`가
-`losses` dict로 조합해 쓴다. raw 출력 형태와 후처리 방식 차이는 다음과 같다 (우선순위 순).
+`losses` dict로 조합해 쓴다. raw 출력 형태와 후처리 방식 차이는 다음과 같다 (구현 순서 순).
 
 | 방법론 | raw 출력 | 후처리 |
 |---|---|---|
 | `direct` | (N, 8) 좌표 logits | sigmoid + reshape |
-| `seg` | (N, 1, H, W) quad 마스크 | findContours + approxPolyDP |
-| `detect` | (N, A, 5+4) 그리드 박스 예측 | 클래스별 top-1 박스 중심 |
-| `heatmap` | (N, 4, H, W) heatmap | soft-argmax |
-| `hybrid` | (N, 1, H, W) 세그멘테이션 마스크 | Canny + Hough + cornerSubPix |
-| `line` | 직선 세그먼트 | 직선 그룹화 + 교점 계산 |
-| `doc` | (N, 8) 좌표 logits (사전학습 기반) | sigmoid + reshape |
 | `homography` | (N, 8) offset | 정준 좌표 + offset |
-| `foundation` | (N, 8) 좌표 logits (frozen backbone) | sigmoid + reshape |
+| `heatmap` | (N, 4, H, W) heatmap | soft-argmax |
+| `seg` | (N, 1, H, W) quad 마스크 | findContours + approxPolyDP |
+| `hybrid` | (N, 1, H, W) 세그멘테이션 마스크 | Canny + Hough + cornerSubPix |
+| `detect` | (N, A, 5+4) 그리드 박스 예측 | 클래스별 top-1 박스 중심 |
 | `gcn` | 초기 코너 + GCN 반복 정제 출력 | 최종 반복 출력 |
+| `doc` | (N, 8) 좌표 logits (사전학습 기반) | sigmoid + reshape |
+| `foundation` | (N, 8) 좌표 logits (frozen backbone) | sigmoid + reshape |
+| `line` | 직선 세그먼트 | 직선 그룹화 + 교점 계산 |
 
 방법론 전용이면서 다른 방법론이 쓰지 않는 보조 연산(예: `line`의 직선 교점 계산)은
 공유 `src/utils/`로 승격하지 않고 해당 방법론 폴더 내부(`postprocessor.py` 등)에 둔다.
@@ -130,8 +129,8 @@ src/
   의미 기반 클래스로 추가).
 - `src/models/base/`의 4종 추상 클래스(공개 시그니처)를 변경하면 이미 구현된 모든 방법론에 동시 반영한다.
 - `scripts/` CLI 인수와 동작이 달라지면 전체 방법론에 동일하게 적용되도록 구현한다.
-- 방법론 구현 순서는 `PLAN.md`의 Phase 순서(direct -> seg -> detect -> heatmap -> hybrid
-  -> line -> doc -> homography -> foundation -> gcn)를 따른다.
+- 방법론 구현 순서는 `PLAN.md`의 난이도/속도 기준 순서(direct -> homography -> heatmap -> seg
+  -> hybrid -> detect -> gcn -> doc -> foundation -> line)를 따른다.
 - 각 방법론은 `main`에서 분기한 `method/<name>` 브랜치(예: `method/direct`)에서 구현/학습/평가를
   진행하고, 검증을 마친 뒤 `main`에 merge한다. 다음 방법론 브랜치는 이전 방법론 merge 완료 후에
   분기한다.

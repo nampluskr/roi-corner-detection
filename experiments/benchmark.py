@@ -1,11 +1,12 @@
-# scripts/benchmark.py: evaluate all trained methods on the same test set into a comparison table
+# experiments/benchmark.py: evaluate all trained methods on the same test set into a comparison table
 
 import os
 import sys
 import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from scripts.config import parse_args, get_experiment, get_output_dir, CONFIGS
+from scripts.config import parse_args, get_experiment, get_output_dir
+from experiments.configs import CONFIGS
 import torch
 from src.utils.io import load_model
 from src.utils.measure import measure_parameters, measure_size_mb, measure_latency

@@ -1,21 +1,21 @@
-# src/models/direct/wrapper.py: composes DirectModel/DirectPreprocessor/DirectPostprocessor and WingLoss
+# src/models/homography/wrapper.py: composes HomographyModel/Preprocessor/Postprocessor and SmoothL1Loss
 
 import torch
 
 from src.models.base.base_wrapper import BaseWrapper
-from src.models.direct.model import DirectModel
-from src.models.direct.preprocessor import DirectPreprocessor
-from src.models.direct.postprocessor import DirectPostprocessor
-from src.losses.wing_loss import WingLoss
+from src.models.homography.model import HomographyModel, ALPHA
+from src.models.homography.preprocessor import HomographyPreprocessor
+from src.models.homography.postprocessor import HomographyPostprocessor
+from src.losses.smooth_l1_loss import SmoothL1Loss
 from src.metrics.polygon_iou import PolygonIoU
 
 
-class DirectWrapper(BaseWrapper):
-    """Wraps DirectModel training/evaluation/inference behind the shared Trainer/Evaluator/Predictor interface."""
+class HomographyWrapper(BaseWrapper):
+    """Wraps HomographyModel training/evaluation/inference behind the shared Trainer/Evaluator/Predictor interface."""
 
     def __init__(self, backbone="resnet50", optimizer=None, preprocessor=None,
                  postprocessor=None, losses=None, metrics=None, device=None):
-        model = DirectModel(backbone=backbone, pretrained=True)
+        model = HomographyModel(backbone=backbone, pretrained=True)
         super().__init__(model, optimizer=optimizer,
                          preprocessor=preprocessor, postprocessor=postprocessor,
                          losses=losses, metrics=metrics, device=device)
@@ -24,9 +24,9 @@ class DirectWrapper(BaseWrapper):
             {"params": self.model.fc.parameters(), "lr": 1e-4},
         ]
         self.set_optimizer(self.optimizer or torch.optim.AdamW(param_groups))
-        self.set_preprocessor(self.preprocessor or DirectPreprocessor())
-        self.set_postprocessor(self.postprocessor or DirectPostprocessor())
-        self.set_losses(self.losses or {"loss": WingLoss(apply_sigmoid=True)})
+        self.set_preprocessor(self.preprocessor or HomographyPreprocessor())
+        self.set_postprocessor(self.postprocessor or HomographyPostprocessor())
+        self.set_losses(self.losses or {"loss": SmoothL1Loss()})
         self.set_metrics(self.metrics or {"iou": PolygonIoU()})
 
     def on_fit_start(self, max_epochs):
@@ -42,7 +42,8 @@ class DirectWrapper(BaseWrapper):
 
         self.optimizer.zero_grad()
         raw_output = self.model(images)
-        loss = sum(loss_fn(raw_output, target) for loss_fn in self.losses.values())
+        offsets = ALPHA * torch.tanh(raw_output)
+        loss = sum(loss_fn(offsets, target) for loss_fn in self.losses.values())
         loss.backward()
         self.optimizer.step()
 
@@ -61,8 +62,9 @@ class DirectWrapper(BaseWrapper):
         target = self.preprocessor(targets)
 
         raw_output = self.model(images)
+        offsets = ALPHA * torch.tanh(raw_output)
         for loss_fn in self.losses.values():
-            loss_fn(raw_output, target)
+            loss_fn(offsets, target)
         preds = self.postprocessor(raw_output)
         preds_np = preds.cpu().numpy()
 

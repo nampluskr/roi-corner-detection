@@ -24,7 +24,11 @@ def main():
 
     wrapper = get_wrapper(args.method, device=args.device)
     trainer = Trainer(wrapper, output_dir=output_dir)
-    history = trainer.fit(train_loader, valid_loader, max_epochs=args.max_epochs)
+    if args.patience > 0:
+        history = trainer.fit_early_stop(train_loader, valid_loader,
+                                         max_epochs=args.max_epochs, patience=args.patience)
+    else:
+        history = trainer.fit(train_loader, valid_loader, max_epochs=args.max_epochs)
 
     if args.save:
         save_model(wrapper.model, checkpoint)

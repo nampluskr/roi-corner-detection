@@ -2,26 +2,26 @@
 
 이 문서는 `docs/` 폴더에 작성할 10개 방법론 상세 보고서의 문서명, 섹션 수준 목차,
 공통 템플릿을 정의한다. 실제 문서 작성 시 이 계획을 따르고, 작성 완료 시 아래
-체크리스트를 갱신한다. 방법론 개요와 우선순위는 `common/roi-corner-detection-models.md`,
+체크리스트를 갱신한다. 방법론 개요와 구현 순서는 `common/roi-corner-detection-models.md`,
 제약 F1-F8과 모듈 시그니처는 `README.md`(SSOT)를 참조한다.
 
 ## 1. 문서 목록
 
-파일명은 우선순위 2자리 넘버링 뒤에 방법론 full name의 kebab-case를 붙인
+파일명은 구현 순서 2자리 넘버링 뒤에 방법론 full name의 kebab-case를 붙인
 `{NN}_{full-name}.md` 형식을 적용하며 `docs/models/`에 둔다.
 
-| 우선순위 | 코드 | 문서명 | 작성 상태 |
+| 구현 순서 | 코드 | 문서명 | 작성 상태 |
 |---:|---|---|---|
 | 1 | `direct` | `models/01_direct-coordinate-regression.md` | [x] |
-| 2 | `seg` | `models/02_segmentation-corner.md` | [ ] |
-| 3 | `detect` | `models/03_bbox-keypoint-detection.md` | [ ] |
-| 4 | `heatmap` | `models/04_heatmap-keypoint-detection.md` | [ ] |
+| 2 | `homography` | `models/02_homography-regression.md` | [ ] |
+| 3 | `heatmap` | `models/03_heatmap-keypoint-detection.md` | [ ] |
+| 4 | `seg` | `models/04_segmentation-corner.md` | [ ] |
 | 5 | `hybrid` | `models/05_dl-classical-cv-hybrid.md` | [ ] |
-| 6 | `line` | `models/06_line-intersection.md` | [ ] |
-| 7 | `doc` | `models/07_document-pretrained.md` | [ ] |
-| 8 | `homography` | `models/08_homography-regression.md` | [ ] |
+| 6 | `detect` | `models/06_bbox-keypoint-detection.md` | [ ] |
+| 7 | `gcn` | `models/07_polygon-gcn.md` | [ ] |
+| 8 | `doc` | `models/08_document-pretrained.md` | [ ] |
 | 9 | `foundation` | `models/09_foundation-adapter.md` | [ ] |
-| 10 | `gcn` | `models/10_polygon-gcn.md` | [ ] |
+| 10 | `line` | `models/10_line-intersection.md` | [ ] |
 
 방법론별 보고서 외에 다음 공통 문서를 `docs/common/`에 둔다. 공통 문서는 넘버링을 적용하지 않는다.
 
@@ -116,5 +116,5 @@
   먼저 갱신한 뒤 보고서를 작성한다.
 - 문서 간 중복 서술을 피한다. 방법론 간 비교는 `common/roi-corner-detection-models.md`가
   담당하고, 각 보고서는 해당 방법론의 상세만 다룬다.
-- 작성 순서는 우선순위 순(1 -> 10)을 따르되, 해당 방법론의 구현 Phase 완료 후 작성을
+- 작성 순서는 구현 순서(1 -> 10)를 따르되, 해당 방법론의 구현 Phase 완료 후 작성을
   원칙으로 한다 (PLAN.md Phase 참조).

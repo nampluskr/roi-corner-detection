@@ -327,7 +327,7 @@ $$
   함께 보고하면 worst-case 경향 파악에 유리하다.
 - 호모그래피 추정이 불가능한 퇴화 표본(코너가 일직선에 가까운 경우 등)은
   Reprojection Error 집계에서 제외하고 실패 건수로 따로 센다.
-- 벤치마크(`scripts/benchmark.py`)는 위 정확도 지표와 함께 GPU/CPU 추론 지연,
+- 벤치마크(`experiments/benchmark.py`)는 위 정확도 지표와 함께 GPU/CPU 추론 지연,
   모델 크기를 측정하여 방법론 간 성능-비용 비교표를 생성한다.
 - latency는 전처리 -> 모델 추론 -> 후처리를 모두 포함한 end-to-end 기준으로
   측정한다. 고전 CV 후처리 비중이 큰 방법론(hybrid, line 등)과의 공정 비교를
