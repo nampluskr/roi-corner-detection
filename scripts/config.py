@@ -19,9 +19,16 @@ DEFAULTS = {
     "test_size": 2000,      # None - all test samples
 }
 
+DEFAULT_BACKBONES = {
+    "seg": "unet_resnet50",
+}
+
+
 def get_experiment(cfg):
-    """Return experiment name derived from method/batch_size/max_epochs."""
-    return "%s_bs%d_ep%d" % (cfg["method"], cfg["batch_size"], cfg["max_epochs"])
+    """Return experiment name derived from method/batch_size/max_epochs/backbone."""
+    method = cfg["method"]
+    backbone = cfg.get("backbone") or DEFAULT_BACKBONES.get(method, "resnet50")
+    return "%s_bs%d_ep%d_%s" % (method, cfg["batch_size"], cfg["max_epochs"], backbone)
 
 
 def get_output_dir(cfg, base="outputs"):
@@ -29,11 +36,20 @@ def get_output_dir(cfg, base="outputs"):
     return os.path.join(base, cfg["method"], get_experiment(cfg))
 
 
+def get_wrapper_kwargs(args):
+    """Return optional model kwargs (e.g. backbone) to pass through get_wrapper."""
+    kwargs = {}
+    if args.backbone is not None:
+        kwargs["backbone"] = args.backbone
+    return kwargs
+
+
 def parse_args():
     """Return parsed arguments shared by train.py and evaluate.py."""
     parser = argparse.ArgumentParser()
     parser.set_defaults(**DEFAULTS)
     parser.add_argument("--method")
+    parser.add_argument("--backbone")
     parser.add_argument("--device")
     parser.add_argument("--batch_size", type=int)
     parser.add_argument("--max_epochs", type=int)

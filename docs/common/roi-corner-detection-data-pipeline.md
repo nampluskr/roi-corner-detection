@@ -55,18 +55,19 @@ $$
 | 저장 형태 | 4개의 (x, y) 실수 쌍 | 픽셀 grid 전체에 대한 0/1 배열 |
 | 정밀도 | 연속 좌표 그대로 보존 | 픽셀 grid로 반올림되며 정보 손실 발생 |
 | 코너 좌표 획득 | 그대로 사용 | 별도의 극점 추출 연산 필요 |
-| 세그멘테이션 학습 타깃 | 변환 필요 (`corners_to_mask`) | 그대로 사용 가능 |
+| 세그멘테이션 학습 타깃 | 변환 필요 (preprocessor 내부 래스터화) | 그대로 사용 가능 |
 
 두 표현은 상호 변환 가능하지만 정밀도가 대칭이지 않다. 점 좌표를 마스크로 채우는
-것(`corners_to_mask`)은 정보 손실이 없는 반면, 마스크에서 점 좌표를 복원하는 것은
+것(래스터화)은 정보 손실이 없는 반면, 마스크에서 점 좌표를 복원하는 것은
 픽셀 격자 반올림으로 인한 양자화 오차를 피할 수 없다. 한 변의 위치가 정수 픽셀
 좌표로 반올림되면서 발생하는 오차의 크기는 축 하나당 최대 0.5픽셀, 두 축을 함께
 고려하면 최대 $\frac{\sqrt{2}}{2}$픽셀이다. 이 프로젝트의 F5 제약(서브픽셀 정밀도)을
 고려하면, 좌표를 직접 다루는 표현이 마스크를 거치는 표현보다 근본적으로 유리하다.
 다만 `seg`/`hybrid` 두 방법론은 세그멘테이션 마스크 자체를 학습 타깃으로 사용하므로,
-이 경우에도 정답은 항상 점 좌표(`corners`)로 먼저 확보한 뒤 `corners_to_mask`로
-마스크를 파생시켜 사용한다. 즉 점 좌표를 유일한 정답 표현(single source of truth)으로
-두고, 마스크는 필요한 방법론에서만 파생 산출물로 생성한다.
+이 경우에도 정답은 항상 점 좌표(`corners`)로 먼저 확보한 뒤 각 방법론의 preprocessor가
+마스크를 파생시켜 사용한다(preprocessor 내부에서 torch 배치 래스터화로 생성). 즉 점
+좌표를 유일한 정답 표현(single source of truth)으로 두고, 마스크는 필요한 방법론에서만
+파생 산출물로 생성한다.
 
 ### 2.2 극점 기반 코너 추출
 
@@ -357,8 +358,8 @@ $$
   조합해 구현한다.
 - **`src/utils/geometry.py`**: `order_corners`(2.3절), `mask_to_corners`(2.2절),
   `is_invalid_corners`(2.3절 퇴화 판정), `polygon_area`가 구현되어 있다.
-  `corners_to_mask`(코너 -> 마스크, 2.1절에서 언급한 파생 산출물 생성용)는 필요한
-  시점에 추가한다.
+  코너 -> 마스크 래스터화(2.1절 파생 산출물)는 공유 유틸로 두지 않고 seg/hybrid의
+  preprocessor 내부에서 torch 배치 연산으로 생성한다.
 - **`src/data/transforms.py`**: `Compose` 및 기하학적 변환(`Resize`,
   `RandomHorizontalFlip`, `RandomVerticalFlip`, `RandomRotation`,
   `RandomPerspective`, `RandomScale`, `RandomAffine`, 5.2-5.3절 대응), 이미지

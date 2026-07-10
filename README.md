@@ -224,7 +224,6 @@ src/
 def order_corners(corners): ...        # -> TL, TR, BR, BL 순서로 정렬된 (4, 2) 배열
 def is_invalid_corners(corners, min_dist=0.02): ...  # 코너 간 거리가 min_dist 미만이면 True (퇴화 판정)
 def mask_to_corners(mask): ...         # 이진 마스크 -> (4, 2) 코너 좌표 (contour 기반)
-def corners_to_mask(corners, shape): ...  # (4, 2) 코너 좌표 -> 이진 마스크
 def polygon_area(corners): ...         # Shoelace 공식 면적 계산
 ```
 

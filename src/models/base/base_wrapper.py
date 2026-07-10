@@ -73,5 +73,9 @@ class BaseWrapper:
     def eval_step(self, images, targets):
         raise NotImplementedError
 
+    @torch.no_grad()
     def predict_step(self, images):
-        raise NotImplementedError
+        self.model.eval()
+        raw_output = self.model(images.to(self.device, non_blocking=True))
+        preds = self.postprocessor(raw_output)
+        return preds.cpu().numpy()
