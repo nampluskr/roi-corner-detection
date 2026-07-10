@@ -70,7 +70,8 @@ flowchart LR
 | `--method` | str | `direct` | 방법론 코드 |
 | `--device` | str | `None` | 생략 시 자동 선택, `cpu`/`cuda` 지정 가능 |
 | `--batch_size` | int | `4` | 배치 크기 |
-| `--max_epochs` | int | `10` | 학습 에폭 수 |
+| `--max_epochs` | int | `50` | 학습 에폭 수 (early stopping 시 상한) |
+| `--patience` | int | `10` | early stopping patience (`0` 이하이면 비활성) |
 | `--num_workers` | int | `4` | DataLoader 워커 수 |
 | `--train_size` | int | `20000` | train 표본 수 (`None`이면 전체) |
 | `--valid_size` | int | `1000` | valid 표본 수 |
@@ -83,7 +84,7 @@ flowchart LR
 오버라이드할 수 없다. 값을 바꾸려면 `scripts/config.py`의 `DEFAULTS`를 수정한다.
 
 실험 이름 `exp_name`은 `scripts/config.py`의 `get_experiment(cfg)`가
-`<method>_bs<batch_size>_ep<max_epochs>` 형식으로 생성한다(예: `direct_bs4_ep10`).
+`<method>_bs<batch_size>_ep<max_epochs>` 형식으로 생성한다(예: `direct_bs4_ep50`).
 `--output_dir`을 지정하지 않으면 산출물 경로는 `get_output_dir`이 계산하는
 `outputs/<method>/<exp_name>`으로 결정되고, `--checkpoint`을 지정하지 않으면 체크포인트
 경로는 그 아래 `model.pth`가 된다. 따라서 같은 방법론이라도 `batch_size`나 `max_epochs`가
@@ -113,19 +114,31 @@ python scripts/fix_data.py data/smartdoc/gt_corners.csv data/midv2020/gt_corners
 
 ### 4.1. 학습 (train.py)
 
-`train.py`는 train/valid 로더를 구성하고 `Trainer.fit`으로 학습한 뒤, `--save` 지정 시
-체크포인트와 학습 이력을 저장한다.
+`train.py`는 train/valid 로더를 구성하고 학습한 뒤, `--save` 지정 시 체크포인트와 학습
+이력을 저장한다. `--patience`가 양수이면 `Trainer.fit_early_stop`으로, `0` 이하이면
+`Trainer.fit`으로 학습한다.
 
 ```text
-python scripts/train.py --method direct --max_epochs 10 --save
+python scripts/train.py --method direct --max_epochs 50 --save
 ```
+
+`fit_early_stop`은 매 epoch 검증 iou를 monitor하여 `patience` 회 연속 개선이 없으면
+학습을 중단하고, best epoch의 가중치를 복원한 뒤 저장한다(따라서 저장되는 `model.pth`는
+last epoch가 아니라 best epoch이다). 검증 iou는 metric이라 값이 클수록 좋으며, 방법론에
+따라 loss 스케일이 달라 loss 대신 iou를 monitor한다. `exp_name`은 예산 기준이라 조기
+종료하더라도 `_ep<max_epochs>` 형태를 유지한다(예: 50 epoch 상한이면 `_ep50`).
+
+learning rate는 같은 valid iou 신호를 monitor하는 `ReduceLROnPlateau`로 조정한다. 검증
+iou가 정체하면 LR을 factor 0.5로 낮추고(scheduler patience는 early stopping patience보다
+작음), 그래도 개선이 없으면 early stopping이 학습을 종료한다. 각 epoch 로그의 `lr=` 값으로
+LR 감소 시점을 확인할 수 있다.
 
 생성 산출물은 다음과 같다.
 
 | 파일 | 내용 |
 |---|---|
-| `outputs/direct/direct_bs4_ep10/model.pth` | 학습된 모델 가중치 |
-| `outputs/direct/direct_bs4_ep10/history.json` | epoch별 train/valid 손실 및 메트릭 이력 |
+| `outputs/direct/direct_bs4_ep50/model.pth` | 학습된 모델 가중치 |
+| `outputs/direct/direct_bs4_ep50/history.json` | epoch별 train/valid 손실 및 메트릭 이력 |
 
 `--save`를 생략하면 학습만 수행하고 아무것도 저장하지 않으므로, 파이프라인 점검 목적이
 아니라면 `--save`를 함께 지정한다.
@@ -137,11 +150,11 @@ python scripts/train.py --method direct --max_epochs 10 --save
 `--batch_size`, `--max_epochs`를 지정해야 같은 폴더를 가리킨다.
 
 ```text
-python scripts/evaluate.py --method direct --max_epochs 10 --save
-python scripts/evaluate.py --method direct --checkpoint outputs/direct/direct_bs4_ep10/model.pth --save
+python scripts/evaluate.py --method direct --max_epochs 50 --save
+python scripts/evaluate.py --method direct --checkpoint outputs/direct/direct_bs4_ep50/model.pth --save
 ```
 
-`--save` 지정 시 메트릭 결과를 `outputs/direct/direct_bs4_ep10/eval_result.json`에 저장한다.
+`--save` 지정 시 메트릭 결과를 `outputs/direct/direct_bs4_ep50/eval_result.json`에 저장한다.
 메트릭 정의는 `common/roi-corner-detection-metrics.md`를 참조한다.
 
 ### 4.3. 추론 (predict.py)
@@ -149,16 +162,16 @@ python scripts/evaluate.py --method direct --checkpoint outputs/direct/direct_bs
 `predict.py`는 체크포인트를 로드해 test 로더 전체에 대한 예측 코너를 CSV로 기록한다.
 
 ```text
-python scripts/predict.py --method direct --max_epochs 10 --save
+python scripts/predict.py --method direct --max_epochs 50 --save
 ```
 
-산출물은 `outputs/direct/direct_bs4_ep10/pred_corners.csv`이며, 컬럼은
+산출물은 `outputs/direct/direct_bs4_ep50/pred_corners.csv`이며, 컬럼은
 `image_dir, image_name, x1, y1, x2, y2, x3, y3, x4, y4`이고 좌표는 [0, 1]로 정규화된다.
 이 CSV는 예측 시각화나 정성 분석의 입력으로 사용한다.
 
 ## 5. 배치 실행 (experiments/run.py)
 
-`experiments/run.py`는 `scripts/config.py`의 `CONFIGS` 리스트에 정의된 방법론/하이퍼파라미터
+`experiments/run.py`는 `experiments/configs.py`의 `CONFIGS` 리스트에 정의된 방법론/하이퍼파라미터
 조합에 대해 CLI 스크립트를 subprocess로 순차 호출하는 배치 러너이다. `CONFIGS`는
 `benchmark.py`와 공유되어 학습과 비교가 같은 실험 목록을 바라보게 한다. 각 실행에는
 `--save`가 자동으로 포함되어 산출물이 저장된다. 한 조합이 실패해도 다음 조합으로
@@ -187,7 +200,7 @@ python experiments/run.py --mode predict
 
 ### 5.3. CONFIGS 편집
 
-실행할 방법론과 하이퍼파라미터는 `scripts/config.py`의 `CONFIGS` 리스트에서 dict로
+실행할 방법론과 하이퍼파라미터는 `experiments/configs.py`의 `CONFIGS` 리스트에서 dict로
 정의한다. `method`는 필수이고, 산출물 경로가 `get_experiment`으로 파생되므로 `batch_size`,
 `max_epochs`도 함께 지정한다. 나머지 키(`device`, `num_workers`, `train_size`,
 `valid_size`, `test_size`, `checkpoint`, `output_dir`)는 있으면 해당 CLI 인수로 전달되고
@@ -200,14 +213,14 @@ CONFIGS = [
 ]
 ```
 
-## 6. 방법론 비교 (benchmark.py)
+## 6. 방법론 비교 (experiments/benchmark.py)
 
-`benchmark.py`는 `scripts/config.py`의 `CONFIGS` 리스트를 순회하며 각 config의 체크포인트를
+`benchmark.py`는 `experiments/configs.py`의 `CONFIGS` 리스트를 순회하며 각 config의 체크포인트를
 동일한 test 세트에서 평가하고, 메트릭과 함께 모델 크기, 파라미터 수, 추론 지연을 하나의
 표로 모은다.
 
 ```text
-python scripts/benchmark.py
+python experiments/benchmark.py
 ```
 
 각 config의 `outputs/<method>/<exp_name>/model.pth` 체크포인트가 없거나 wrapper가 아직
@@ -236,15 +249,15 @@ UC1. 새 방법론을 처음부터 학습하고 평가한다. evaluate가 같은
 동일한 `--max_epochs`를 준다.
 
 ```text
-python scripts/train.py --method direct --max_epochs 10 --save
-python scripts/evaluate.py --method direct --max_epochs 10 --save
+python scripts/train.py --method direct --max_epochs 50 --save
+python scripts/evaluate.py --method direct --max_epochs 50 --save
 ```
 
 UC2. 이미 학습된 모델로 추론 결과 CSV만 다시 생성한다. 학습에 사용한 것과 같은
 `--batch_size`, `--max_epochs`를 지정해 해당 실험 폴더의 체크포인트를 가리킨다.
 
 ```text
-python scripts/predict.py --method direct --max_epochs 10 --save
+python scripts/predict.py --method direct --max_epochs 50 --save
 ```
 
 UC3. 파이프라인이 끊김 없이 도는지 짧게 점검한다. 표본 수를 크게 줄여 빠르게 한 번
@@ -255,20 +268,20 @@ python scripts/train.py --method direct --max_epochs 1 --train_size 32 --valid_s
 python scripts/evaluate.py --method direct --max_epochs 1 --test_size 16 --save
 ```
 
-UC4. 여러 방법론을 일괄 학습, 추론한 뒤 비교표를 만든다. `scripts/config.py`의
+UC4. 여러 방법론을 일괄 학습, 추론한 뒤 비교표를 만든다. `experiments/configs.py`의
 `CONFIGS`에 방법론을 추가한 다음 실행한다. `run.py`와 `benchmark.py`가 같은 `CONFIGS`를
 참조하므로 학습한 실험이 그대로 비교 대상이 된다.
 
 ```text
 python experiments/run.py --mode all
-python scripts/benchmark.py
+python experiments/benchmark.py
 ```
 
 UC5. 특정 체크포인트나 출력 경로를 지정해 실행한다. `--output_dir`을 주면 exp_name 하위
 폴더 대신 지정한 경로를 그대로 사용한다.
 
 ```text
-python scripts/evaluate.py --method direct --checkpoint outputs/direct/direct_bs4_ep10/model.pth --output_dir outputs/direct_eval --save
+python scripts/evaluate.py --method direct --checkpoint outputs/direct/direct_bs4_ep50/model.pth --output_dir outputs/direct_eval --save
 ```
 
 UC6. 자원 상황에 맞춰 device나 배치 크기를 조정한다.
@@ -290,7 +303,7 @@ python scripts/train.py --method direct --device cuda --batch_size 16 --save
 | `predict.py` | 예측 코너 | `outputs/<method>/<exp_name>/pred_corners.csv` |
 | `benchmark.py` | 비교표 | `outputs/comparison/results.csv` |
 
-여기서 `<exp_name>`은 `<method>_bs<batch_size>_ep<max_epochs>`이다(예: `direct_bs4_ep10`).
+여기서 `<exp_name>`은 `<method>_bs<batch_size>_ep<max_epochs>`이다(예: `direct_bs4_ep50`).
 
 각 스크립트는 실행 로그를 `get_logger`를 통해 터미널에 출력하고, `output_dir`이 설정되면
 동일 디렉터리의 `run.log`에도 기록한다. `history.json`은 학습 곡선 시각화, `pred_corners.csv`는

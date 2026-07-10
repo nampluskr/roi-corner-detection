@@ -58,8 +58,13 @@ class BaseWrapper:
     def on_fit_start(self, max_epochs):
         pass
 
-    def on_epoch_end(self):
-        if self.scheduler is not None:
+    def on_epoch_end(self, valid_score=None):
+        if self.scheduler is None:
+            return
+        if isinstance(self.scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+            if valid_score is not None:
+                self.scheduler.step(valid_score)
+        else:
             self.scheduler.step()
 
     def train_step(self, images, targets):

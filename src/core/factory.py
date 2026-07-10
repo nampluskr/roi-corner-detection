@@ -76,6 +76,9 @@ def get_wrapper(method, device=None, **kwargs):
     if method == "direct":
         from src.models.direct.wrapper import DirectWrapper
         return DirectWrapper(device=device, **kwargs)
+    elif method == "homography":
+        from src.models.homography.wrapper import HomographyWrapper
+        return HomographyWrapper(device=device, **kwargs)
     raise NotImplementedError("method not yet implemented: %s" % method)
 
 

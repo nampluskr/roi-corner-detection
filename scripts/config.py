@@ -11,18 +11,13 @@ DEFAULTS = {
     "method": "direct",
     "image_size": 224,
     "batch_size": 4,
-    "max_epochs": 10,
+    "max_epochs": 50,
+    "patience": 5,
     "num_workers": 4,
-    "train_size": 20000,    # None - all train samples
-    "valid_size": 1000,    # None - all valid samples
-    "test_size": 1000,     # None - all test samples
+    "train_size": 10000,    # None - all train samples
+    "valid_size": 2000,     # None - all valid samples
+    "test_size": 2000,      # None - all test samples
 }
-
-CONFIGS = [
-    {"method": "direct", "batch_size": 4, "max_epochs": 10},
-    # add seg/detect/heatmap/... configs as each method is implemented
-]
-
 
 def get_experiment(cfg):
     """Return experiment name derived from method/batch_size/max_epochs."""
@@ -42,6 +37,7 @@ def parse_args():
     parser.add_argument("--device")
     parser.add_argument("--batch_size", type=int)
     parser.add_argument("--max_epochs", type=int)
+    parser.add_argument("--patience", type=int)
     parser.add_argument("--num_workers", type=int)
     parser.add_argument("--train_size", type=int)
     parser.add_argument("--valid_size", type=int)

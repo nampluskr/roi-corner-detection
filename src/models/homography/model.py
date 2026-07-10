@@ -1,4 +1,4 @@
-# src/models/direct/model.py: ResNet backbone with FC(8) head for direct coordinate regression
+# src/models/homography/model.py: ResNet backbone with FC(8) offset head for homography regression
 
 import torch
 import torch.nn as nn
@@ -18,9 +18,18 @@ BACKBONE_BUILDERS = {
     "resnet50": models.resnet50,
 }
 
+MARGIN = 0.25
+ALPHA = 0.25
+CANONICAL_CORNERS = [
+    [MARGIN, MARGIN],
+    [1.0 - MARGIN, MARGIN],
+    [1.0 - MARGIN, 1.0 - MARGIN],
+    [MARGIN, 1.0 - MARGIN],
+]
 
-class DirectModel(BaseModel):
-    """ResNet backbone with global average pooling and an FC(8) head for corner regression."""
+
+class HomographyModel(BaseModel):
+    """ResNet backbone with GAP and an FC(8) head predicting canonical-corner offsets."""
 
     def __init__(self, backbone="resnet50", pretrained=True):
         super().__init__()
@@ -36,6 +45,8 @@ class DirectModel(BaseModel):
         net.fc = nn.Identity()
         self.backbone = net
         self.fc = nn.Linear(in_features, 8)
+        nn.init.zeros_(self.fc.weight)
+        nn.init.zeros_(self.fc.bias)
 
     def forward(self, images):
         features = self.backbone(images)

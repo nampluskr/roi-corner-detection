@@ -5,23 +5,26 @@
 
 ## 1. 방법론
 
-| 코드 | 방법론 | 우선순위 | 핵심 아이디어 | 추가 의존성 | 복잡도 |
+| 코드 | 방법론 | 구현 순서 | 핵심 아이디어 | 추가 의존성 | 복잡도 |
 |---|---|---:|---|---|---|
 | `direct` | Direct Coordinate Regression (카탈로그 A) | 1 | CNN backbone -> FC(8), Sigmoid + SmoothL1/Wing Loss | 없음 | 낮음 |
-| `seg` | Segmentation Corner (카탈로그 C) | 2 | quad 마스크 세그멘테이션 -> findContours + approxPolyDP | OpenCV(기존 사용) | 중간 |
-| `detect` | BBox Keypoint Detection (신규 설계) | 3 | 코너 4개를 작은 박스 객체로 검출 (클래스 = 코너 id), 박스 중심 -> 코너 | 없음 | 중간 |
-| `heatmap` | Heatmap Keypoint Detection (카탈로그 B) | 4 | 4채널 heatmap + soft-argmax, 서브픽셀 정밀도 | 없음 | 중간 |
+| `homography` | Homography Regression (카탈로그 E) | 2 | 정준 사각형 기준 8개 offset 회귀 | 없음 | 낮음 |
+| `heatmap` | Heatmap Keypoint Detection (카탈로그 B) | 3 | 4채널 heatmap + soft-argmax, 서브픽셀 정밀도 | 없음 | 중간 |
+| `seg` | Segmentation Corner (카탈로그 C) | 4 | quad 마스크 세그멘테이션 -> findContours + approxPolyDP | OpenCV(기존 사용) | 중간 |
 | `hybrid` | DL + Classical CV Hybrid (카탈로그 I) | 5 | Segmentation(MobileNetV3-UNet) + Canny/Hough/cornerSubPix | OpenCV(기존 사용) | 중간 |
-| `line` | Line Intersection (카탈로그 D) | 6 | 직선 검출(M-LSD 또는 Canny+Hough) + 교점 계산 | M-LSD 가중치(외부) | 중간 |
-| `doc` | Document Pretrained (카탈로그 J) | 7 | DocTr/DocScanner 파인튜닝, few-shot 적응 | DocTr 패키지(외부) | 높음 |
-| `homography` | Homography Regression (카탈로그 E) | 8 | 정준 사각형 기준 8개 offset 회귀 | 없음 | 낮음 |
+| `detect` | BBox Keypoint Detection (신규 설계) | 6 | 코너 4개를 작은 박스 객체로 검출 (클래스 = 코너 id), 박스 중심 -> 코너 | 없음 | 중간 |
+| `gcn` | Polygon GCN (카탈로그 F) | 7 | 초기 코너 -> GCN 반복 정제 (1-3회) | 없음 | 높음 |
+| `doc` | Document Pretrained (카탈로그 J) | 8 | DocTr/DocScanner 파인튜닝, few-shot 적응 | DocTr 패키지(외부) | 높음 |
 | `foundation` | Foundation Adapter (카탈로그 H) | 9 | frozen DINOv2/SAM backbone + 경량 head, few-shot 상한 탐색 | DINOv2/SAM 가중치(외부) | 높음 |
-| `gcn` | Polygon GCN (카탈로그 F) | 10 | 초기 코너 -> GCN 반복 정제 (1-3회) | 없음 | 높음 |
+| `line` | Line Intersection (카탈로그 D) | 10 | 직선 검출(M-LSD 또는 Canny+Hough) + 교점 계산 | M-LSD 가중치(외부) | 중간 |
 
-우선순위 1-3(direct, seg, detect)은 고정이며, 4-10은 프로젝트 목적(fringe 패널 도메인,
-F1-F8 제약) 적합도 순으로 재정렬한 결과이다. `seg`는 기존에 `hybrid`(I)의 세그멘테이션
-단계로 흡수되어 있던 카탈로그 C를 독립 방법론으로 승격한 것이고, `detect`는 카탈로그 G
-(DETR-style)가 아닌 바운딩박스 기반 keypoint detector로 새로 설계한 방법론이다.
+구현 순서는 구현 난이도와 속도 기준으로 정렬한 착수 순서이며, 상세 근거는
+`docs/common/roi-corner-detection-implementation-order.md`를 참조한다. `direct`를 베이스라인으로
+두고, 그 사촌인 `homography`(동일 FC head)와 외부 의존이 없는 `heatmap`을 앞에 둔다. `seg`는
+기존에 `hybrid`(I)의 세그멘테이션 단계로 흡수되어 있던 카탈로그 C를 독립 방법론으로 승격한
+것이고(그래서 `seg` 직후 `hybrid`가 마스크 model을 재사용한다), `detect`는 카탈로그 G
+(DETR-style)가 아닌 바운딩박스 기반 keypoint detector로 새로 설계한 방법론이다. 외부
+가중치/패키지 의존이 있는 `doc`, `foundation`, `line`은 뒤로 둔다.
 
 모든 방법론은 `src/models/base/`의 4종 추상 클래스(`BaseModel`, `BasePreprocessor`,
 `BasePostprocessor`, `BaseWrapper`)를 구현하고, 공유 `Trainer`/`Evaluator`/
@@ -29,7 +32,7 @@ F1-F8 제약) 적합도 순으로 재정렬한 결과이다. `seg`는 기존에 
 그대로 사용한다. 모든 모델은
 공통 `Dataloader`(`src/data/dataloader.py`)로부터 입력을 받고, 방법론별 전용
 `preprocessor.py`가 표준 코너 `(N, 4, 2)`를 해당 방법론의 학습 타깃으로 변환한다.
-방법론 간 성능 비교는 `scripts/benchmark.py`가 담당한다.
+방법론 간 성능 비교는 `experiments/benchmark.py`가 담당한다.
 10개 방법론의 상세 비교는 `docs/common/roi-corner-detection-models.md`를 참조한다.
 
 ## 2. 핵심 제약 (F1-F8)
@@ -41,7 +44,7 @@ F1-F8 제약) 적합도 순으로 재정렬한 결과이다. `seg`는 기존에 
 | F3 | 4개 코너는 항상 이미지 경계 내부 | 회전 증강 +-5도 제한, clipping 검증 필수. detect 코너 박스는 경계 클리핑 처리 |
 | F4 | 실측 데이터 적음, 합성 데이터 다수 | 3단계 학습 전략 (공개 데이터 -> 합성 -> 실측 파인튜닝). doc/foundation이 F4 대응책, gcn/detect는 합성 단계 의존 큼 |
 | F5 | 서브픽셀 정밀도가 중요 (위상 복원용) | Reprojection Error를 IoU와 함께 필수 메트릭으로 추적. heatmap/hybrid는 태생적 서브픽셀, seg/detect는 cornerSubPix 후정제 옵션 |
-| F6 | CPU 배포 지연/모델 크기 제약 (예산 TBD) | `scripts/benchmark.py`가 GPU/CPU latency, 모델 크기 필수 측정. 경량 방법론(hybrid, line, homography) 우선순위 근거 |
+| F6 | CPU 배포 지연/모델 크기 제약 (예산 TBD) | `experiments/benchmark.py`가 GPU/CPU latency, 모델 크기 필수 측정. 경량 방법론(hybrid, line, homography) 우선순위 근거 |
 | F7 | 조명/글레어/비네팅 변동 존재 | ColorJitter, GaussianBlur, GaussianNoise 광학 증강 필수. 합성 fringe에 반사/글레어 시뮬레이션 포함 |
 | F8 | 패널 가림 없음 (검사 환경 보장) | 후처리 단순화 근거 - line 4변 그룹화, seg 단일 컨투어 가정, detect 클래스별 정확히 1개 검출 가정 |
 
@@ -68,7 +71,7 @@ F1-F5는 레거시 프로젝트 `_project/sources/P1-project-overview.md` 3절(P
 | Reprojection Error | 기하 변환 품질 | [0, inf) | 작을수록 좋음 | 기준점 집합을 예측 코너 기반 호모그래피 $H_P$와 정답 코너 기반 호모그래피 $H_G$로 각각 투영한 뒤 그 차이를 평균. 위상 복원(원근 보정) 품질과 직결되는 핵심 지표 |
 | SR (Success Rate) | 검출 성공 비율 | [0, 1] | 클수록 좋음 | 표준 코너 (4,2)를 반환한 표본 비율. 후처리 실패 모드가 있는 방법론(seg/detect/line/hybrid)의 공정 비교 필수 지표 |
 | PCK@tau | 임계값 내 성공 비율 | [0, 1] | 클수록 좋음 | MaxCD가 임계값 tau 이하인 표본 비율 (tau는 픽셀 기준, 기본 2px/5px을 정규화 좌표로 환산해 적용) |
-| GPU/CPU latency, 모델 크기 | 배포 적합성 | - | 작을수록 좋음 | `scripts/benchmark.py`로 측정. latency는 전처리 -> 추론 -> 후처리 end-to-end 기준, warm-up 후 반복 측정 평균 |
+| GPU/CPU latency, 모델 크기 | 배포 적합성 | - | 작을수록 좋음 | `experiments/benchmark.py`로 측정. latency는 전처리 -> 추론 -> 후처리 end-to-end 기준, warm-up 후 반복 측정 평균 |
 
 Polygon IoU/MCD/MaxCD/Reprojection Error는 표본(이미지) 단위 지표이고, SR/PCK@tau는
 테스트셋 전체에 대한 집계 단위 지표이다. 모든 표본 단위 메트릭은 `src/metrics/`에
@@ -95,6 +98,8 @@ roi-corner-detection/
 ├── data/
 ├── docs/
 ├── experiments/
+│   ├── benchmark.py
+│   ├── configs.py
 │   └── run.py
 ├── notebooks/
 │   ├── data/
@@ -113,7 +118,6 @@ roi-corner-detection/
 │   ├── seg/
 │   └── comparison/
 ├── scripts/
-│   ├── benchmark.py
 │   ├── config.py
 │   ├── create_data.py
 │   ├── evaluate.py
@@ -197,20 +201,20 @@ src/
 각 방법론 폴더(`detect/direct/doc/foundation/gcn/heatmap/homography/hybrid/line/seg`)는 항상
 **같은 이름의 파일 4개**(`model.py`, `preprocessor.py`, `postprocessor.py`, `wrapper.py`)를 갖고,
 내용만 방법론별로 다르다. loss는 `src/losses`의 재사용 클래스를 `wrapper.py`가 조합해 쓴다.
-방법론 간 raw 출력 형태 차이는 다음과 같다 (우선순위 순).
+방법론 간 raw 출력 형태 차이는 다음과 같다 (구현 순서 순).
 
 | 방법론 | raw 출력 (`model.py`) | 학습 타깃 (`preprocessor.py`) | loss (`src/losses`, wrapper가 조합) | 후처리 (`postprocessor.py`) |
 |---|---|---|---|---|
 | `direct` | (N, 8) 좌표 logits | 정규화 좌표 그대로 | logits vs 좌표 타깃 | sigmoid + reshape (N,4,2) |
-| `seg` | (N, 1, H, W) quad 마스크 | corners -> 채운 폴리곤 마스크 | mask vs 마스크 타깃 | findContours + approxPolyDP -> (N,4,2) |
-| `detect` | (N, A, 5+4) 그리드 박스 예측 (obj, dx, dy, w, h, 4-class) | corners -> 코너별 고정 크기 박스 (클래스 = 코너 인덱스) | box 회귀 + objectness/class | 클래스별 top-1 박스 중심 -> (N,4,2) |
-| `heatmap` | (N, 4, H, W) heatmap | corners -> gaussian heatmap | heatmap vs heatmap 타깃 | soft-argmax -> (N,4,2) |
-| `hybrid` | (N, 1, H, W) 세그멘테이션 마스크 | corners -> 마스크 | mask vs 마스크 타깃 | Canny+Hough+cornerSubPix -> (N,4,2) |
-| `line` | 직선 세그먼트 raw 출력 | corners -> 직선/엣지 타깃 | 직선 표현 loss | 직선 그룹화 + 교점 계산 -> (N,4,2) |
-| `doc` | (N, 8) 좌표 logits (사전학습 기반) | 정규화 좌표 그대로 | logits vs 좌표 타깃 | sigmoid + reshape (N,4,2) |
 | `homography` | (N, 8) offset | corners -> 정준 사각형 기준 offset | offset vs offset 타깃 | 정준 좌표 + offset -> (N,4,2) |
-| `foundation` | (N, 8) 좌표 logits (frozen backbone + 경량 head) | 정규화 좌표 그대로 | logits vs 좌표 타깃 | sigmoid + reshape (N,4,2) |
+| `heatmap` | (N, 4, H, W) heatmap | corners -> gaussian heatmap | heatmap vs heatmap 타깃 | soft-argmax -> (N,4,2) |
+| `seg` | (N, 1, H, W) quad 마스크 | corners -> 채운 폴리곤 마스크 | mask vs 마스크 타깃 | findContours + approxPolyDP -> (N,4,2) |
+| `hybrid` | (N, 1, H, W) 세그멘테이션 마스크 | corners -> 마스크 | mask vs 마스크 타깃 | Canny+Hough+cornerSubPix -> (N,4,2) |
+| `detect` | (N, A, 5+4) 그리드 박스 예측 (obj, dx, dy, w, h, 4-class) | corners -> 코너별 고정 크기 박스 (클래스 = 코너 인덱스) | box 회귀 + objectness/class | 클래스별 top-1 박스 중심 -> (N,4,2) |
 | `gcn` | 초기 코너 + GCN 반복 정제 출력 | corners (반복 단계별 supervision) | 반복 단계별 좌표 loss | 최종 반복 출력 -> (N,4,2) |
+| `doc` | (N, 8) 좌표 logits (사전학습 기반) | 정규화 좌표 그대로 | logits vs 좌표 타깃 | sigmoid + reshape (N,4,2) |
+| `foundation` | (N, 8) 좌표 logits (frozen backbone + 경량 head) | 정규화 좌표 그대로 | logits vs 좌표 타깃 | sigmoid + reshape (N,4,2) |
+| `line` | 직선 세그먼트 raw 출력 | corners -> 직선/엣지 타깃 | 직선 표현 loss | 직선 그룹화 + 교점 계산 -> (N,4,2) |
 
 ### 6.1 `src/utils`
 
@@ -581,7 +585,6 @@ class Predictor:
 
 ```text
 scripts/
-├── benchmark.py
 ├── config.py
 ├── create_data.py
 ├── evaluate.py
@@ -600,13 +603,13 @@ DEFAULTS = {
     "method": "direct",
     "image_size": 224,
     "batch_size": 4,
-    "max_epochs": 10,
+    "max_epochs": 50,
+    "patience": 10,
     "num_workers": 4,
     "train_size": 20000,
     "valid_size": 1000,
     "test_size": 1000,
 }
-CONFIGS = [ ... ]              # run.py / benchmark.py가 공유하는 실험 조합 목록
 def get_experiment(cfg): ...   # -> "{method}_bs{batch_size}_ep{max_epochs}"
 def get_output_dir(cfg): ...   # -> "outputs/{method}/{exp_name}"
 def parse_args(): ...          # 모든 스크립트가 공유하는 ArgumentParser
@@ -619,7 +622,8 @@ def parse_args(): ...          # 모든 스크립트가 공유하는 ArgumentPar
 | `--method` | str | `direct` | 방법론 코드 (`direct`, `seg`, `detect`, ...) |
 | `--device` | str | `None` | 생략 시 자동선택, `cpu`/`cuda` 강제 지정 가능 |
 | `--batch_size` | int | `4` | 배치 크기 |
-| `--max_epochs` | int | `10` | 학습 에폭 수 |
+| `--max_epochs` | int | `50` | 학습 에폭 수 (early stopping 시 상한) |
+| `--patience` | int | `10` | early stopping patience (valid iou 미개선 허용 epoch 수, `0` 이하이면 비활성) |
 | `--num_workers` | int | `4` | DataLoader 워커 프로세스 수 (train 기준) |
 | `--train_size` | int | `20000` | train 표본 수로 서브샘플링 (`None`이면 전체) |
 | `--valid_size` | int | `1000` | valid 표본 수로 서브샘플링 (`None`이면 전체) |
@@ -638,24 +642,27 @@ python scripts/fix_data.py data/smartdoc/gt_corners.csv data/midv2020/gt_corners
 python scripts/train.py --method direct --max_epochs 50
 python scripts/evaluate.py --method direct --checkpoint outputs/direct/direct_bs16_ep50/model.pth
 python scripts/predict.py --method direct --checkpoint outputs/direct/direct_bs16_ep50/model.pth
-python scripts/benchmark.py   # config.py CONFIGS 평가 -> outputs/comparison/results.csv
 ```
 
 ## 8. `experiments`
 
 ```text
 experiments/
+├── benchmark.py
+├── configs.py
 └── run.py
 ```
 
-`scripts/config.py`의 `CONFIGS` 리스트에 정의된 방법론/하이퍼파라미터 조합을 순서대로
-`scripts/`를 subprocess로 호출하여 일괄 실행한다. 같은 `CONFIGS`를 `benchmark.py`도 참조한다.
+`experiments/configs.py`의 `CONFIGS` 리스트에 정의된 방법론/하이퍼파라미터 조합을 순서대로
+`run.py`가 `scripts/`를 subprocess로 호출하여 일괄 실행한다. 같은 `CONFIGS`를
+`benchmark.py`도 참조하여 학습된 체크포인트를 동일 테스트셋으로 비교한다.
 
 ```
 python experiments/run.py --mode train
 python experiments/run.py --mode evaluate
 python experiments/run.py --mode predict
 python experiments/run.py --mode all
+python experiments/benchmark.py   # configs.py CONFIGS 평가 -> outputs/comparison/results.csv
 ```
 
 ## 9. 참조 프로젝트
