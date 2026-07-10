@@ -4,7 +4,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from scripts.config import parse_args
+from scripts.config import parse_args, get_output_dir
 from src.utils.io import load_model
 from src.core.factory import get_dataloader, get_wrapper
 from src.core.evaluator import Evaluator
@@ -12,17 +12,18 @@ from src.core.evaluator import Evaluator
 
 def main():
     args = parse_args()
-    output_dir = args.output_dir or os.path.join("outputs", args.method)
+    output_dir = args.output_dir or get_output_dir(vars(args))
     checkpoint = args.checkpoint or os.path.join(output_dir, "model.pth")
 
     wrapper = get_wrapper(args.method, device=args.device)
     load_model(wrapper.model, checkpoint)
 
-    valid_loader = get_dataloader("valid", args.csv_path, image_size=args.input_size,
-                                   batch_size=args.batch_size, seed=args.seed)
+    test_loader = get_dataloader("test", args.csv_path, image_size=args.image_size,
+                                 batch_size=args.batch_size, seed=args.seed,
+                                 num_workers=args.num_workers, num_samples=args.test_size)
 
     evaluator = Evaluator(wrapper, output_dir=output_dir)
-    result = evaluator.evaluate(valid_loader)
+    result = evaluator.evaluate(test_loader)
 
     if args.save:
         evaluator.save(result)

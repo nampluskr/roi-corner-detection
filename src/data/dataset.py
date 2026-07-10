@@ -11,8 +11,25 @@ from torch.utils.data import random_split, Dataset as TorchDataset, Subset as To
 from src.data.transforms import ToTensor
 
 
-class Dataset(TorchDataset):
-    """Shared CSV-loading, splitting, and subsetting logic for corner datasets."""
+class BaseDataset(TorchDataset):
+    """Shared splitting and subsetting logic for CSV-backed datasets and their subsets."""
+
+    def subset(self, num_samples, seed=42):
+        generator = torch.Generator().manual_seed(seed)
+        indices = torch.randperm(len(self), generator=generator)[:num_samples].tolist()
+        return Subset(self, indices)
+
+    def split(self, split_ratio=0.8, seed=42):
+        n_first = int(len(self) * split_ratio)
+        n_second = len(self) - n_first
+        generator = torch.Generator().manual_seed(seed)
+        first_indices, second_indices = random_split(
+            range(len(self)), [n_first, n_second], generator=generator)
+        return Subset(self, list(first_indices)), Subset(self, list(second_indices))
+
+
+class Dataset(BaseDataset):
+    """Loads CSV-backed samples and rebuilds itself with a new transform."""
 
     def __init__(self, csv_path, transform=None):
         self.csv_path = csv_path
@@ -39,26 +56,13 @@ class Dataset(TorchDataset):
     def __getitem__(self, idx):
         raise NotImplementedError
 
-    def split(self, split_ratio=0.8, seed=42):
-        n_train = int(len(self) * split_ratio)
-        n_valid = len(self) - n_train
-        generator = torch.Generator().manual_seed(seed)
-        train_indices, valid_indices = random_split(
-            range(len(self)), [n_train, n_valid], generator=generator)
-        return Subset(self, list(train_indices)), Subset(self, list(valid_indices))
-
-    def subset(self, num_samples, seed=42):
-        generator = torch.Generator().manual_seed(seed)
-        indices = torch.randperm(len(self), generator=generator)[:num_samples].tolist()
-        return Subset(self, indices)
-
     def set_transform(self, transform):
         new_dataset = copy.copy(self)
         new_dataset.transform = transform
         return new_dataset
 
 
-class Subset(TorchDataset):
+class Subset(BaseDataset):
     """Wraps a torch Subset so set_transform can rebuild it with a new transform."""
 
     def __init__(self, dataset, indices):
@@ -71,11 +75,6 @@ class Subset(TorchDataset):
 
     def __getitem__(self, idx):
         return self._subset[idx]
-
-    def subset(self, num_samples, seed=42):
-        generator = torch.Generator().manual_seed(seed)
-        indices = torch.randperm(len(self), generator=generator)[:num_samples].tolist()
-        return Subset(self, indices)
 
     def set_transform(self, transform):
         new_dataset = self.dataset.set_transform(transform)

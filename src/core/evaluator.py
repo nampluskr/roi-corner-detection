@@ -18,7 +18,8 @@ DEFAULT_METRICS = {
     "mcd": MCD(),
     "max_cd": MaxCD(),
     "reproj_error": ReprojectionError(),
-    "pck": PCK(),
+    "pck@0.02": PCK(tau=0.02),
+    "pck@0.05": PCK(tau=0.05),
     "sr": SuccessRate(),
 }
 

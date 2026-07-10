@@ -49,6 +49,7 @@ class Trainer:
         if valid_loader is not None:
             history["valid"] = {}
 
+        self.wrapper.on_fit_start(max_epochs)
         for epoch in range(1, max_epochs + 1):
             train_result = self.train(train_loader)
             for k, v in train_result.items():
@@ -61,6 +62,7 @@ class Trainer:
                     history["valid"].setdefault(k, []).append(v)
                 log += " | %s" % format_result(valid_result)
             self.logger.info(log)
+            self.wrapper.on_epoch_end()
         return history
 
     def save(self, history, output_dir=None):

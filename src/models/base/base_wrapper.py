@@ -11,6 +11,7 @@ class BaseWrapper:
         self.set_device(device)
         self.model = model.to(self.device)
         self.set_optimizer(optimizer)
+        self.scheduler = None
         self.set_preprocessor(preprocessor)
         self.set_postprocessor(postprocessor)
         self.set_losses(losses)
@@ -53,6 +54,13 @@ class BaseWrapper:
 
     def compute_metrics(self):
         return {name: metric.compute() for name, metric in self.metrics.items()}
+
+    def on_fit_start(self, max_epochs):
+        pass
+
+    def on_epoch_end(self):
+        if self.scheduler is not None:
+            self.scheduler.step()
 
     def train_step(self, images, targets):
         raise NotImplementedError

@@ -214,7 +214,7 @@ Foundation Adapter는 "표현은 빌리고 해독기만 배운다"는 극단적 
 - **preprocessor**: 표준 코너 $(N, 4, 2)$를 $(N, 8)$로 flatten한다 (direct와
   동일). 좌표가 이미 [0, 1] 정규화 및 순서 고정 상태이므로 모양 변경 외의 변환은
   없다. 입력 해상도는 backbone의 패치 크기 배수 제약(예: ViT-B/14는 14의 배수)을
-  따르도록 factory의 input_size 설정과 맞춘다.
+  따르도록 factory의 image_size 설정과 맞춘다.
 - **postprocessor**: raw 출력 logits $(N, 8)$에 sigmoid를 적용한 뒤 $(N, 4, 2)$로
   reshape한다 (direct와 동일, 2.4절).
 - **실패 모드**: 모델이 항상 8개 값을 출력하므로 실패 모드가 구조적으로 없다.

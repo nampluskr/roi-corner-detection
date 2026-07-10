@@ -13,21 +13,30 @@ from src.metrics.polygon_iou import PolygonIoU
 class DirectWrapper(BaseWrapper):
     """Wraps DirectModel training/evaluation/inference behind the shared Trainer/Evaluator/Predictor interface."""
 
-    def __init__(self, backbone="resnet18", optimizer=None, preprocessor=None,
+    def __init__(self, backbone="resnet50", optimizer=None, preprocessor=None,
                  postprocessor=None, losses=None, metrics=None, device=None):
         model = DirectModel(backbone=backbone, pretrained=True)
         super().__init__(model, optimizer=optimizer,
                          preprocessor=preprocessor, postprocessor=postprocessor,
                          losses=losses, metrics=metrics, device=device)
-        self.set_optimizer(self.optimizer or torch.optim.Adam(self.model.parameters(), lr=1e-3))
+        param_groups = [
+            {"params": self.model.backbone.parameters(), "lr": 1e-5},
+            {"params": self.model.fc.parameters(), "lr": 1e-4},
+        ]
+        self.set_optimizer(self.optimizer or torch.optim.AdamW(param_groups))
         self.set_preprocessor(self.preprocessor or DirectPreprocessor())
         self.set_postprocessor(self.postprocessor or DirectPostprocessor())
         self.set_losses(self.losses or {"loss": WingLoss(apply_sigmoid=True)})
         self.set_metrics(self.metrics or {"iou": PolygonIoU()})
 
+    def on_fit_start(self, max_epochs):
+        self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            self.optimizer, T_max=max_epochs)
+
     def train_step(self, images, targets):
         self.model.train()
-        images, targets = images.to(self.device), targets.to(self.device)
+        images = images.to(self.device, non_blocking=True)
+        targets = targets.to(self.device, non_blocking=True)
         target = self.preprocessor(targets)
 
         self.optimizer.zero_grad()
@@ -46,7 +55,8 @@ class DirectWrapper(BaseWrapper):
     @torch.no_grad()
     def eval_step(self, images, targets):
         self.model.eval()
-        images, targets = images.to(self.device), targets.to(self.device)
+        images = images.to(self.device, non_blocking=True)
+        targets = targets.to(self.device, non_blocking=True)
         target = self.preprocessor(targets)
 
         raw_output = self.model(images)
@@ -62,6 +72,6 @@ class DirectWrapper(BaseWrapper):
     @torch.no_grad()
     def predict_step(self, images):
         self.model.eval()
-        raw_output = self.model(images.to(self.device))
+        raw_output = self.model(images.to(self.device, non_blocking=True))
         preds = self.postprocessor(raw_output)
         return preds.cpu().numpy()
