@@ -82,6 +82,9 @@ def get_wrapper(method, device=None, **kwargs):
     elif method == "heatmap":
         from src.models.heatmap.wrapper import HeatmapWrapper
         return HeatmapWrapper(device=device, **kwargs)
+    elif method == "seg":
+        from src.models.seg.wrapper import SegWrapper
+        return SegWrapper(device=device, **kwargs)
     raise NotImplementedError("method not yet implemented: %s" % method)
 
 

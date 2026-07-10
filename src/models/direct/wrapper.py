@@ -69,10 +69,3 @@ class DirectWrapper(BaseWrapper):
         self.update_metrics(preds_np, targets.cpu().numpy())
 
         return {**self.compute_losses(), **self.compute_metrics()}
-
-    @torch.no_grad()
-    def predict_step(self, images):
-        self.model.eval()
-        raw_output = self.model(images.to(self.device, non_blocking=True))
-        preds = self.postprocessor(raw_output)
-        return preds.cpu().numpy()

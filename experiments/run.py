@@ -14,7 +14,7 @@ from experiments.configs import CONFIGS
 
 MODES = ["train", "evaluate", "predict"]
 
-PASS_KEYS = ["device", "batch_size", "max_epochs", "num_workers",
+PASS_KEYS = ["backbone", "device", "batch_size", "max_epochs", "num_workers",
              "train_size", "valid_size", "test_size", "checkpoint", "output_dir"]
 
 

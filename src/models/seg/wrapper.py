@@ -1,21 +1,23 @@
-# src/models/heatmap/wrapper.py: composes HeatmapModel/Preprocessor/Postprocessor and MSELoss
+# src/models/seg/wrapper.py: composes SegModel/Preprocessor/Postprocessor and BCE + Dice losses
 
 import torch
 
 from src.models.base.base_wrapper import BaseWrapper
-from src.models.heatmap.model import HeatmapModel
-from src.models.heatmap.preprocessor import HeatmapPreprocessor
-from src.models.heatmap.postprocessor import HeatmapPostprocessor
-from src.losses.mse_loss import MSELoss
+from src.models.seg.model import SegModel
+from src.models.seg.preprocessor import SegPreprocessor
+from src.models.seg.postprocessor import SegPostprocessor
+from src.losses.bce_loss import BCELoss
+from src.losses.dice_loss import DiceLoss
 from src.metrics.polygon_iou import PolygonIoU
+from src.metrics.success_rate import SuccessRate
 
 
-class HeatmapWrapper(BaseWrapper):
-    """Wraps HeatmapModel training/evaluation/inference behind the shared Trainer/Evaluator/Predictor interface."""
+class SegWrapper(BaseWrapper):
+    """Wraps SegModel training/evaluation/inference behind the shared Trainer/Evaluator/Predictor interface."""
 
-    def __init__(self, backbone="resnet50", optimizer=None, preprocessor=None,
+    def __init__(self, backbone="unet_resnet50", optimizer=None, preprocessor=None,
                  postprocessor=None, losses=None, metrics=None, device=None):
-        model = HeatmapModel(backbone=backbone, pretrained=True)
+        model = SegModel(backbone=backbone, pretrained=True)
         super().__init__(model, optimizer=optimizer,
                          preprocessor=preprocessor, postprocessor=postprocessor,
                          losses=losses, metrics=metrics, device=device)
@@ -24,10 +26,10 @@ class HeatmapWrapper(BaseWrapper):
             {"params": self.model.head.parameters(), "lr": 1e-4},
         ]
         self.set_optimizer(self.optimizer or torch.optim.AdamW(param_groups))
-        self.set_preprocessor(self.preprocessor or HeatmapPreprocessor())
-        self.set_postprocessor(self.postprocessor or HeatmapPostprocessor())
-        self.set_losses(self.losses or {"loss": MSELoss()})
-        self.set_metrics(self.metrics or {"iou": PolygonIoU()})
+        self.set_preprocessor(self.preprocessor or SegPreprocessor())
+        self.set_postprocessor(self.postprocessor or SegPostprocessor())
+        self.set_losses(self.losses or {"bce": BCELoss(), "dice": DiceLoss()})
+        self.set_metrics(self.metrics or {"iou": PolygonIoU(), "success": SuccessRate()})
 
     def on_fit_start(self, max_epochs):
         self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
@@ -38,10 +40,10 @@ class HeatmapWrapper(BaseWrapper):
         self.model.train()
         images = images.to(self.device, non_blocking=True)
         targets = targets.to(self.device, non_blocking=True)
-        target = self.preprocessor(targets)
 
         self.optimizer.zero_grad()
         raw_output = self.model(images)
+        target = self.preprocessor(targets, size=raw_output.shape[-1])
         loss = sum(loss_fn(raw_output, target) for loss_fn in self.losses.values())
         loss.backward()
         self.optimizer.step()
@@ -58,14 +60,13 @@ class HeatmapWrapper(BaseWrapper):
         self.model.eval()
         images = images.to(self.device, non_blocking=True)
         targets = targets.to(self.device, non_blocking=True)
-        target = self.preprocessor(targets)
 
         raw_output = self.model(images)
+        target = self.preprocessor(targets, size=raw_output.shape[-1])
         for loss_fn in self.losses.values():
             loss_fn(raw_output, target)
-        preds = self.postprocessor(raw_output)
-        preds_np = preds.cpu().numpy()
+        preds = self.postprocessor(raw_output).cpu().numpy()
 
-        self.update_metrics(preds_np, targets.cpu().numpy())
+        self.update_metrics(preds, targets.cpu().numpy())
 
         return {**self.compute_losses(), **self.compute_metrics()}
