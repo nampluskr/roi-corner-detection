@@ -9,13 +9,13 @@ from src.utils.geometry import polygon_area
 class PolygonIoU(BaseMetric):
     """Computes area-based IoU between predicted and ground-truth quadrilaterals."""
 
-    def __call__(self, pred_corners, gt_corners):
-        pred = np.array(pred_corners, dtype=np.float64).reshape(4, 2)
-        gt = np.array(gt_corners, dtype=np.float64).reshape(4, 2)
+    def __call__(self, preds, targets):
+        pred = np.array(preds, dtype=np.float64).reshape(4, 2)
+        target = np.array(targets, dtype=np.float64).reshape(4, 2)
 
-        inter_pts = self._clip_polygon(pred, gt)
+        inter_pts = self._clip_polygon(pred, target)
         inter_area = polygon_area(inter_pts) if len(inter_pts) >= 3 else 0.0
-        union_area = polygon_area(pred) + polygon_area(gt) - inter_area
+        union_area = polygon_area(pred) + polygon_area(target) - inter_area
         if union_area <= 0.0:
             return 0.0
         return float(inter_area / union_area)

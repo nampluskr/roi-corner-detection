@@ -23,9 +23,10 @@ F1-F8 제약) 적합도 순으로 재정렬한 결과이다. `seg`는 기존에 
 단계로 흡수되어 있던 카탈로그 C를 독립 방법론으로 승격한 것이고, `detect`는 카탈로그 G
 (DETR-style)가 아닌 바운딩박스 기반 keypoint detector로 새로 설계한 방법론이다.
 
-모든 방법론은 `src/models/base/`의 5종 추상 클래스(`BaseModel`, `BasePreprocessor`,
-`BasePostprocessor`, `BaseLoss`, `BaseWrapper`)를 구현하고, 공유 `Trainer`/`Evaluator`/
-`Predictor`(`src/core/`)와 공통 메트릭(`src/metrics/`)을 그대로 사용한다. 모든 모델은
+모든 방법론은 `src/models/base/`의 4종 추상 클래스(`BaseModel`, `BasePreprocessor`,
+`BasePostprocessor`, `BaseWrapper`)를 구현하고, 공유 `Trainer`/`Evaluator`/
+`Predictor`(`src/core/`), 공통 loss(`src/losses/`, `BaseLoss` 상속), 공통 메트릭(`src/metrics/`)을
+그대로 사용한다. 모든 모델은
 공통 `Dataloader`(`src/data/dataloader.py`)로부터 입력을 받고, 방법론별 전용
 `preprocessor.py`가 표준 코너 `(N, 4, 2)`를 해당 방법론의 학습 타깃으로 변환한다.
 방법론 간 성능 비교는 `scripts/benchmark.py`가 담당한다.
@@ -158,6 +159,9 @@ src/
 │   ├── smartdoc.py
 │   ├── synthetic.py
 │   └── transforms.py
+├── losses/
+│   ├── base_loss.py
+│   └── wing_loss.py
 ├── metrics/
 │   ├── base_metric.py
 │   ├── max_cd.py
@@ -167,36 +171,35 @@ src/
 │   └── reprojection_error.py
 ├── models/
 │   ├── base/
-│   │   ├── base_loss.py
 │   │   ├── base_model.py
 │   │   ├── base_postprocessor.py
 │   │   ├── base_preprocessor.py
 │   │   └── base_wrapper.py
 │   ├── detect/
-│   │   ├── loss.py
 │   │   ├── model.py
 │   │   ├── postprocessor.py
 │   │   ├── preprocessor.py
 │   │   └── wrapper.py
-│   ├── direct/      (동일 5개 파일: loss.py, model.py, postprocessor.py, preprocessor.py, wrapper.py)
-│   ├── doc/         (동일 5개 파일)
-│   ├── foundation/  (동일 5개 파일)
-│   ├── gcn/         (동일 5개 파일)
-│   ├── heatmap/     (동일 5개 파일)
-│   ├── homography/  (동일 5개 파일)
-│   ├── hybrid/      (동일 5개 파일)
-│   ├── line/        (동일 5개 파일)
-│   └── seg/         (동일 5개 파일)
+│   ├── direct/      (동일 4개 파일: model.py, postprocessor.py, preprocessor.py, wrapper.py)
+│   ├── doc/         (동일 4개 파일)
+│   ├── foundation/  (동일 4개 파일)
+│   ├── gcn/         (동일 4개 파일)
+│   ├── heatmap/     (동일 4개 파일)
+│   ├── homography/  (동일 4개 파일)
+│   ├── hybrid/      (동일 4개 파일)
+│   ├── line/        (동일 4개 파일)
+│   └── seg/         (동일 4개 파일)
 └── utils/
     ├── geometry.py
     └── homography.py
 ```
 
 각 방법론 폴더(`detect/direct/doc/foundation/gcn/heatmap/homography/hybrid/line/seg`)는 항상
-**같은 이름의 파일 5개**를 갖고, 내용만 방법론별로 다르다. 방법론 간 raw 출력 형태 차이는
-다음과 같다 (우선순위 순).
+**같은 이름의 파일 4개**(`model.py`, `preprocessor.py`, `postprocessor.py`, `wrapper.py`)를 갖고,
+내용만 방법론별로 다르다. loss는 `src/losses`의 재사용 클래스를 `wrapper.py`가 조합해 쓴다.
+방법론 간 raw 출력 형태 차이는 다음과 같다 (우선순위 순).
 
-| 방법론 | raw 출력 (`model.py`) | 학습 타깃 (`preprocessor.py`) | loss 대상 (`loss.py`) | 후처리 (`postprocessor.py`) |
+| 방법론 | raw 출력 (`model.py`) | 학습 타깃 (`preprocessor.py`) | loss (`src/losses`, wrapper가 조합) | 후처리 (`postprocessor.py`) |
 |---|---|---|---|---|
 | `direct` | (N, 8) 좌표 logits | 정규화 좌표 그대로 | logits vs 좌표 타깃 | sigmoid + reshape (N,4,2) |
 | `seg` | (N, 1, H, W) quad 마스크 | corners -> 채운 폴리곤 마스크 | mask vs 마스크 타깃 | findContours + approxPolyDP -> (N,4,2) |
@@ -238,6 +241,26 @@ def show_samples(images, corners=None, ncols=5, title=None, denormalize=False, c
 # denormalize: True면 Denormalize()(IMAGENET_MEAN/STD 기본값)를 적용 후 clamp(0,1)
 # cell_size: 개별 subplot 한 칸의 (width, height) 크기(inch). figsize = (ncols*w, nrows*h)
 # 코너가 주어지면 TL/TR/BR/BL 순서로 점 + 라벨(고정 오프셋) + Polygon(fill=False) 외곽선을 그린다
+
+def show_history(history, title=None): ...
+# history["train"]["key"] = [val0, val1, ...] 형태의 에폭별 메트릭 스칼라
+# history["valid"]["key"]는 선택사항. 각 key마다 subplot 하나씩 train/valid 곡선을 겹쳐 그림
+# title: 선택사항, 그래프 최상단에 표시할 제목 문자열
+```
+
+**`io.py`**
+
+```python
+def save_model(model, checkpoint): ...   # model.state_dict()를 checkpoint(.pth 경로)에 저장
+def load_model(model, checkpoint): ...   # checkpoint(.pth 경로)에서 state_dict를 로드해 model에 적용
+```
+
+**`measure.py`**
+
+```python
+def measure_parameters(model): ...       # -> 모델 전체 파라미터 개수
+def measure_size_mb(model): ...          # -> state_dict 기준 모델 크기 (MB)
+def measure_latency(model, device, image_size=224, batch_size=1, warmup=5, iters=20): ...  # -> 배치당 평균 추론 지연 (ms)
 ```
 
 ### 6.2 `src/data`
@@ -368,42 +391,71 @@ def generate_fringe_image(A, B, f, phi, direction="horizontal"): ...
 
 ### 6.3 `src/metrics`
 
-메트릭마다 `BaseMetric`을 상속하는 클래스 하나씩, 파일도 하나씩 분리한다. 모든
-메트릭은 `__call__(pred_corners, gt_corners, ...)`로 함수처럼 호출한다.
+메트릭마다 `BaseMetric`을 상속하는 클래스 하나씩, 파일도 하나씩 분리한다. 계산 시그니처는
+방법론/도메인 이름을 넣지 않고 `__call__(preds, targets)`로 일반화하며, 함수처럼 호출한다.
+메트릭 고유의 설정값(`ReprojectionError`의 `ref_corners`, `PCK`의 `tau`)은 `__call__` 인자가
+아니라 `__init__` 인자로 받는다.
 
 **`base_metric.py`**
 
 ```python
 class BaseMetric:
-    def __call__(self, pred_corners, gt_corners): ...   # 서브클래스가 오버라이드 (NotImplementedError)
+    def update(self, preds, targets): ...               # 배치를 순회하며 표본별 값을 누적
+    def __call__(self, preds, targets): ...             # 서브클래스가 오버라이드 (NotImplementedError)
 ```
 
-**`polygon_iou.py` / `mcd.py` / `max_cd.py` / `reprojection_error.py` / `pck.py`**
+**`polygon_iou.py` / `mcd.py` / `max_cd.py` / `reprojection_error.py` / `pck.py` / `success_rate.py`**
 
 ```python
 class PolygonIoU(BaseMetric):
-    def __call__(self, pred_corners, gt_corners): ...
+    def __call__(self, preds, targets): ...
     # (4,2), (4,2) -> float, Sutherland-Hodgman 클리핑 + utils.geometry.polygon_area 사용
 
 class MCD(BaseMetric):
-    def __call__(self, pred_corners, gt_corners): ...   # -> float, Mean Corner Distance
+    def __call__(self, preds, targets): ...             # -> float, Mean Corner Distance
 
 class MaxCD(BaseMetric):
-    def __call__(self, pred_corners, gt_corners): ...   # -> float, Max Corner Distance
+    def __call__(self, preds, targets): ...             # -> float, Max Corner Distance
 
 class ReprojectionError(BaseMetric):
-    def __call__(self, pred_corners, gt_corners, ref_corners): ...
-    # -> float, ref_corners: 정규 사각형 기준점. utils.homography 사용
+    def __init__(self, ref_corners=None): ...           # ref_corners: 정규 사각형 기준점
+    def __call__(self, preds, targets): ...             # -> float, utils.homography 사용
 
 class PCK(BaseMetric):
-    def __call__(self, pred_corners, gt_corners, tau): ...
-    # -> bool, MaxCD <= tau 표본 단위 성공 여부 (내부적으로 MaxCD 재사용)
+    def __init__(self, tau=0.02): ...
+    def __call__(self, preds, targets): ...             # -> bool, MaxCD <= tau 성공 여부 (MaxCD 재사용)
+
+class SuccessRate(BaseMetric):
+    def __call__(self, preds, targets): ...             # -> float, 후처리가 유효한(non-NaN) 좌표를 냈는지
 ```
 
-> SR(Success Rate)은 `src/metrics/` 클래스가 아니라 postprocessor의 성공 플래그를
-> Evaluator가 집계하는 지표이다.
+### 6.4 `src/losses`
 
-### 6.4 `src/models/base`
+loss마다 `BaseLoss`를 상속하는 클래스 하나씩, 파일도 하나씩 분리한다. metrics와 대칭으로
+방법론/모델 이름을 넣지 않고 의미 기반 이름(`WingLoss` 등)으로 정의하며, 각 방법론 wrapper가
+`losses` dict로 조합해 쓴다. loss 고유 설정값은 `__init__` 인자로 받는다. `BaseLoss`는
+metrics처럼 reset/update/compute 상태를 갖고, 배치 평균 loss를 표본 가중으로 누적한다.
+
+**`base_loss.py`**
+
+```python
+class BaseLoss:
+    def reset(self): ...                          # loss 누적 초기화 (total/count)
+    def update(self, value, count): ...           # 배치 평균 loss를 표본 가중 누적
+    def compute(self): ...                        # -> 누적 평균 loss
+    def __call__(self, raw_output, target): ...   # forward 호출 + 자동 누적, -> scalar loss
+    def forward(self, raw_output, target): ...    # 서브클래스가 오버라이드 (NotImplementedError)
+```
+
+**`wing_loss.py`**
+
+```python
+class WingLoss(BaseLoss):
+    def __init__(self, apply_sigmoid=False, w=10.0, epsilon=2.0): ...
+    def forward(self, raw_output, target): ...    # apply_sigmoid=True면 sigmoid 후 Wing loss, -> scalar
+```
+
+### 6.5 `src/models/base`
 
 **`base_model.py`**
 
@@ -426,27 +478,21 @@ class BasePostprocessor:
     def __call__(self, raw_output): ...   # raw_output -> corners: (N, 4, 2) 표준 포맷
 ```
 
-**`base_loss.py`**
-
-```python
-class BaseLoss:
-    def __call__(self, raw_output, target): ...   # -> scalar loss
-```
-
 **`base_wrapper.py`**
 
 ```python
 class BaseWrapper:
-    def __init__(self, model, optimizer=None): ...
-    def train_step(self, images, corners): ...    # -> dict(loss=...)
-    def eval_step(self, images, corners): ...      # -> dict(loss=..., corners_pred=(N,4,2))
-    def predict_step(self, images): ...            # -> corners_pred: (N, 4, 2)
+    def __init__(self, model, optimizer=None): ...   # losses/metrics는 dict (단일 loss는 {"loss": ...})
+    def train_step(self, images, targets): ...     # -> dict(loss/메트릭 누적 평균)
+    def eval_step(self, images, targets): ...      # -> dict(loss/메트릭 누적 평균)
+    def predict_step(self, images): ...            # -> preds: (N, 4, 2)
 ```
 
-### 6.5 `src/models/<name>`
+### 6.6 `src/models/<name>`
 
-각 방법론 폴더는 `base/`의 5종 클래스를 상속한다. `wrapper.py`는 생성자에서 같은 폴더의
-`model`/`preprocessor`/`postprocessor`/`loss`(+옵티마이저)를 직접 구성해 감싼다.
+각 방법론 폴더는 `base/`의 4종 클래스(`BaseModel`/`BasePreprocessor`/`BasePostprocessor`/
+`BaseWrapper`)를 상속한다. `wrapper.py`는 생성자에서 같은 폴더의
+`model`/`preprocessor`/`postprocessor`(+옵티마이저)와 `src/losses`의 loss를 직접 구성해 감싼다.
 
 **예: `direct/`** (Method A)
 
@@ -464,39 +510,39 @@ class DirectPreprocessor(BasePreprocessor):
 class DirectPostprocessor(BasePostprocessor):
     def __call__(self, raw_output): ...   # (N,8) -> sigmoid -> (N,4,2)
 
-# loss.py
-class DirectLoss(BaseLoss):
-    def __call__(self, raw_output, target): ...   # sigmoid + SmoothL1 또는 Wing Loss
-
 # wrapper.py
 class DirectWrapper(BaseWrapper):
     def __init__(self, backbone="resnet18", lr=1e-3): ...
-    # 내부에서 DirectModel/DirectPreprocessor/DirectPostprocessor/DirectLoss/Adam optimizer 구성
+    # 내부에서 DirectModel/DirectPreprocessor/DirectPostprocessor/Adam optimizer 구성,
+    # losses={"loss": WingLoss(apply_sigmoid=True)} (src/losses)
 ```
 
-**나머지 방법론**은 동일한 5개 파일 패턴을 따르되 내용만 다르다 (6절 상단 표 참조).
+**나머지 방법론**은 동일한 4개 파일 패턴을 따르되 내용만 다르다 (6절 상단 표 참조).
+loss는 각 wrapper가 `src/losses`의 재사용 클래스를 `losses` dict로 조합해 쓴다
+(MSE/BCE/Dice 등은 `src/losses`에 필요 시점에 추가).
 - `heatmap/`: `HeatmapModel`(deconv head), `HeatmapPreprocessor`(corners->gaussian heatmap),
-  `HeatmapPostprocessor`(soft-argmax), `HeatmapLoss`(heatmap MSE), `HeatmapWrapper`
+  `HeatmapPostprocessor`(soft-argmax), `HeatmapWrapper`(losses: heatmap MSE)
 - `hybrid/`: `HybridModel`(MobileNetV3-UNet), `HybridPreprocessor`(corners->mask),
-  `HybridPostprocessor`(Canny+Hough+cornerSubPix), `HybridLoss`(BCE/Dice), `HybridWrapper`
+  `HybridPostprocessor`(Canny+Hough+cornerSubPix), `HybridWrapper`(losses: BCE/Dice)
 - `line/`: `LineModel`(M-LSD 또는 Canny/Hough 래퍼), `LinePreprocessor`(corners->직선 타깃),
-  `LinePostprocessor`(직선 그룹화+교점 계산, 직선 교점 연산은 이 폴더 내부에 둠), `LineLoss`, `LineWrapper`
+  `LinePostprocessor`(직선 그룹화+교점 계산, 직선 교점 연산은 이 폴더 내부에 둠), `LineWrapper`(losses: 직선 표현)
 - `doc/`: `DocModel`(DocTr/DocScanner 파인튜닝 + 어댑터), `DocPreprocessor`(direct와 동일 방식),
-  `DocPostprocessor`(direct와 동일 방식), `DocLoss`, `DocWrapper`
+  `DocPostprocessor`(direct와 동일 방식), `DocWrapper`(losses: direct와 동일)
 
-### 6.6 `src/core`
+### 6.7 `src/core`
 
 **`factory.py`**
 
 ```python
-def get_transform(split, input_size=512): ...
-def get_dataset(split, csv_path, input_size=512, has_corners=True): ...
+def get_transform(split, image_size=512): ...
+def get_dataset(split, csv_path, image_size=512, has_corners=True): ...
 # has_corners=True -> CornerDataset, False -> ImageDataset
-def get_dataloader(split, csv_path, input_size=512, batch_size=16, seed=42, has_corners=True): ...
-def get_samples(split, csv_path, input_size=512, indices=None, num_samples=None,
+def get_dataloader(split, csv_path, image_size=512, batch_size=16, seed=42, has_corners=True): ...
+def get_samples(split, csv_path, image_size=512, indices=None, num_samples=None,
                 shuffle=False, seed=42, has_corners=True): ...
 # -> has_corners=True: (images, corners) 스택된 텐서 튜플, False: images 스택된 텐서 하나
 def get_wrapper(method, device=None, **kwargs): ...   # method: direct|heatmap|hybrid|line|doc
+def get_logger(name, output_dir=None): ...   # 터미널 + output_dir 지정 시 run.log 파일
 ```
 
 **`trainer.py`**
@@ -549,14 +595,20 @@ scripts/
 ```python
 DEFAULTS = {
     "data_dir": "/mnt/d/datasets/roi-corner",
-    "output_dir": "outputs",
+    "csv_path": ["data/smartdoc/gt_corners.csv", "data/midv2020/gt_corners.csv"],
     "seed": 42,
     "method": "direct",
-    "input_size": 512,
-    "batch_size": 16,
-    "max_epochs": 50,
+    "image_size": 224,
+    "batch_size": 4,
+    "max_epochs": 10,
+    "num_workers": 4,
+    "train_size": 20000,
+    "valid_size": 1000,
+    "test_size": 1000,
 }
+CONFIGS = [ ... ]              # run.py / benchmark.py가 공유하는 실험 조합 목록
 def get_experiment(cfg): ...   # -> "{method}_bs{batch_size}_ep{max_epochs}"
+def get_output_dir(cfg): ...   # -> "outputs/{method}/{exp_name}"
 def parse_args(): ...          # 모든 스크립트가 공유하는 ArgumentParser
 ```
 
@@ -564,15 +616,19 @@ def parse_args(): ...          # 모든 스크립트가 공유하는 ArgumentPar
 
 | 인수 | 타입 | 기본값 | 설명 |
 |---|---|---|---|
-| `--method` | str | `direct` | `direct`, `heatmap`, `hybrid`, `line`, `doc` |
-| `--device` | str | `None` | 생략 시 자동선택, `cpu`/`gpu` 강제 지정 가능 |
-| `--batch_size` | int | `16` | 배치 크기 |
-| `--max_epochs` | int | `50` | 학습 에폭 수 |
+| `--method` | str | `direct` | 방법론 코드 (`direct`, `seg`, `detect`, ...) |
+| `--device` | str | `None` | 생략 시 자동선택, `cpu`/`cuda` 강제 지정 가능 |
+| `--batch_size` | int | `4` | 배치 크기 |
+| `--max_epochs` | int | `10` | 학습 에폭 수 |
+| `--num_workers` | int | `4` | DataLoader 워커 프로세스 수 (train 기준) |
+| `--train_size` | int | `20000` | train 표본 수로 서브샘플링 (`None`이면 전체) |
+| `--valid_size` | int | `1000` | valid 표본 수로 서브샘플링 (`None`이면 전체) |
+| `--test_size` | int | `1000` | test 표본 수로 서브샘플링 (`None`이면 전체) |
 | `--save` | flag | `False` | 결과 저장 여부 |
 | `--checkpoint` | str | `None` | 체크포인트 경로 (None 이면 자동 계산) |
-| `--output_dir` | str | `None` | 결과 저장 경로 |
+| `--output_dir` | str | `None` | 결과 저장 경로 (None 이면 `outputs/{method}/{exp_name}`) |
 
-> `data_dir`, `seed`, `input_size`는 CLI 인수가 아닌 `DEFAULTS`에서 직접 읽는다.
+> `data_dir`, `csv_path`, `seed`, `image_size`는 CLI 인수가 아닌 `DEFAULTS`에서 직접 읽는다.
 
 ### 7.3 스크립트별 사용법
 
@@ -580,9 +636,9 @@ def parse_args(): ...          # 모든 스크립트가 공유하는 ArgumentPar
 python scripts/create_data.py --dataset smartdoc --data_dir <raw_dir> --output_path data/smartdoc/gt_corners.csv
 python scripts/fix_data.py data/smartdoc/gt_corners.csv data/midv2020/gt_corners.csv
 python scripts/train.py --method direct --max_epochs 50
-python scripts/evaluate.py --method direct --checkpoint outputs/direct/model.pth
-python scripts/predict.py --method direct --checkpoint outputs/direct/model.pth
-python scripts/benchmark.py   # 전체 방법론 평가 -> outputs/comparison/results.csv
+python scripts/evaluate.py --method direct --checkpoint outputs/direct/direct_bs16_ep50/model.pth
+python scripts/predict.py --method direct --checkpoint outputs/direct/direct_bs16_ep50/model.pth
+python scripts/benchmark.py   # config.py CONFIGS 평가 -> outputs/comparison/results.csv
 ```
 
 ## 8. `experiments`
@@ -592,8 +648,8 @@ experiments/
 └── run.py
 ```
 
-`CONFIGS` 리스트에 정의된 방법론/하이퍼파라미터 조합을 순서대로 `scripts/`를 subprocess로
-호출하여 일괄 실행한다.
+`scripts/config.py`의 `CONFIGS` 리스트에 정의된 방법론/하이퍼파라미터 조합을 순서대로
+`scripts/`를 subprocess로 호출하여 일괄 실행한다. 같은 `CONFIGS`를 `benchmark.py`도 참조한다.
 
 ```
 python experiments/run.py --mode train
