@@ -79,6 +79,9 @@ def get_wrapper(method, device=None, **kwargs):
     elif method == "homography":
         from src.models.homography.wrapper import HomographyWrapper
         return HomographyWrapper(device=device, **kwargs)
+    elif method == "heatmap":
+        from src.models.heatmap.wrapper import HeatmapWrapper
+        return HeatmapWrapper(device=device, **kwargs)
     raise NotImplementedError("method not yet implemented: %s" % method)
 
 
