@@ -1,22 +1,22 @@
-# src/models/seg/wrapper.py: composes SegModel/Preprocessor/Postprocessor and BCE + Dice losses
+# src/models/hybrid/wrapper.py: composes HybridModel/Preprocessor/Postprocessor and BCE + Dice losses
 
 import torch
 
 from src.models.base.base_wrapper import BaseWrapper
-from src.models.seg.model import SegModel
-from src.models.seg.preprocessor import SegPreprocessor
-from src.models.seg.postprocessor import SegPostprocessor
+from src.models.hybrid.model import HybridModel
+from src.models.hybrid.preprocessor import HybridPreprocessor
+from src.models.hybrid.postprocessor import HybridPostprocessor
 from src.losses.bce_loss import BCELoss
 from src.losses.dice_loss import DiceLoss
 from src.metrics.polygon_iou import PolygonIoU
 
 
-class SegWrapper(BaseWrapper):
-    """Wraps SegModel training/evaluation/inference behind the shared Trainer/Evaluator/Predictor interface."""
+class HybridWrapper(BaseWrapper):
+    """Wraps HybridModel training/evaluation/inference behind the shared Trainer/Evaluator/Predictor interface."""
 
-    def __init__(self, backbone="unet_resnet50", optimizer=None, preprocessor=None,
+    def __init__(self, backbone="unet_mobilenet_v3_large", optimizer=None, preprocessor=None,
                  postprocessor=None, losses=None, metrics=None, device=None):
-        model = SegModel(backbone=backbone, pretrained=True)
+        model = HybridModel(backbone=backbone, pretrained=True)
         super().__init__(model, optimizer=optimizer,
                          preprocessor=preprocessor, postprocessor=postprocessor,
                          losses=losses, metrics=metrics, device=device)
@@ -25,8 +25,8 @@ class SegWrapper(BaseWrapper):
             {"params": self.model.head.parameters(), "lr": 1e-4},
         ]
         self.set_optimizer(self.optimizer or torch.optim.AdamW(param_groups))
-        self.set_preprocessor(self.preprocessor or SegPreprocessor())
-        self.set_postprocessor(self.postprocessor or SegPostprocessor())
+        self.set_preprocessor(self.preprocessor or HybridPreprocessor())
+        self.set_postprocessor(self.postprocessor or HybridPostprocessor())
         self.set_losses(self.losses or {"bce": BCELoss(), "dice": DiceLoss()})
         self.set_metrics(self.metrics or {"iou": PolygonIoU()})
 

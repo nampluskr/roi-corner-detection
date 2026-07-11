@@ -85,6 +85,9 @@ def get_wrapper(method, device=None, **kwargs):
     elif method == "seg":
         from src.models.seg.wrapper import SegWrapper
         return SegWrapper(device=device, **kwargs)
+    elif method == "hybrid":
+        from src.models.hybrid.wrapper import HybridWrapper
+        return HybridWrapper(device=device, **kwargs)
     raise NotImplementedError("method not yet implemented: %s" % method)
 
 

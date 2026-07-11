@@ -14,13 +14,14 @@ DEFAULTS = {
     "max_epochs": 50,
     "patience": 5,
     "num_workers": 4,
-    "train_size": 10000,    # None - all train samples
-    "valid_size": 2000,     # None - all valid samples
-    "test_size": 2000,      # None - all test samples
+    "train_size": 2000,     # None - all train samples
+    "valid_size": 1000,     # None - all valid samples
+    "test_size": 1000,      # None - all test samples
 }
 
 DEFAULT_BACKBONES = {
     "seg": "unet_resnet50",
+    "hybrid": "unet_mobilenet_v3_large",
 }
 
 
