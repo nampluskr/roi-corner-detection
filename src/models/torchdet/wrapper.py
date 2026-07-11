@@ -13,22 +13,16 @@ from src.metrics.polygon_iou import PolygonIoU
 class TorchdetWrapper(BaseWrapper):
     """Wraps a torchvision detector behind the shared Trainer/Evaluator/Predictor interface."""
 
-    def __init__(self, backbone="fasterrcnn", optimizer=None, preprocessor=None,
-                 postprocessor=None, losses=None, metrics=None, device=None):
+    def __init__(self, backbone="fasterrcnn", optimizer=None, losses=None,
+                 metrics=None, device=None):
         model = TorchdetModel(backbone=backbone, pretrained=True)
-        super().__init__(model, optimizer=optimizer,
-                         preprocessor=preprocessor, postprocessor=postprocessor,
+        preprocessor = TorchdetPreprocessor()
+        postprocessor = TorchdetPostprocessor()
+        super().__init__(model, preprocessor, postprocessor, optimizer=optimizer,
                          losses=losses, metrics=metrics, device=device)
         self.set_optimizer(self.optimizer or torch.optim.AdamW(self.model.parameters(), lr=1e-4))
-        self.set_preprocessor(self.preprocessor or TorchdetPreprocessor())
-        self.set_postprocessor(self.postprocessor or TorchdetPostprocessor())
         self.set_losses(self.losses or {"loss": BaseLoss()})
         self.set_metrics(self.metrics or {"iou": PolygonIoU()})
-
-    def on_fit_start(self, max_epochs):
-        self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            self.optimizer, mode="max", factor=0.5, patience=2,
-            threshold=1e-4, threshold_mode="abs", min_lr=1e-7)
 
     @torch.no_grad()
     def _predict(self, images, image_size):
@@ -55,7 +49,7 @@ class TorchdetWrapper(BaseWrapper):
             self.model.train()
             self.update_metrics(preds, targets.cpu().numpy())
 
-        return {**self.compute_losses(), **self.compute_metrics()}
+        return {**self.get_loss_results(), **self.get_metric_results()}
 
     @torch.no_grad()
     def eval_step(self, images, targets):
@@ -71,7 +65,7 @@ class TorchdetWrapper(BaseWrapper):
         preds = self._predict(images, image_size)
         self.update_metrics(preds, targets.cpu().numpy())
 
-        return {**self.compute_losses(), **self.compute_metrics()}
+        return {**self.get_loss_results(), **self.get_metric_results()}
 
     @torch.no_grad()
     def predict_step(self, images):

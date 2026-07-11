@@ -15,10 +15,17 @@ hybrid, det, gcn, doc, foundation, line, torchseg, torchdet)을 공유 데이터
 자체(좌표/마스크/박스/heatmap/직선 등)가 다르다. 따라서 다음 두 축으로 공통성을 확보한다.
 
 - **인터페이스 공통**: 모든 방법론은 `src/models/base/`의 4종 추상 클래스(`BaseModel`,
-  `BasePreprocessor`, `BasePostprocessor`, `BaseWrapper`)를 상속한다.
+  `BasePreprocessor`, `BasePostprocessor`, `BaseWrapper`)를 직접 상속한다.
+- **방법론 독립**: `src/models/<name>/`은 다른 방법론 폴더를 import하거나 상속하지 않는다.
+  같은 알고리즘을 쓰더라도 각 방법론의 4개 파일 안에 독립적으로 구현한다.
 - **실행 공통**: `src/core/trainer.py`의 `Trainer`, `src/core/evaluator.py`의 `Evaluator`,
   `src/core/predictor.py`의 `Predictor`는 방법론에 상관없이 `Wrapper` 인스턴스 하나만 받아
   동일하게 구동된다.
+- **step 공통**: `BaseWrapper`가 기본 `train_step`/`eval_step`과 scheduler를 제공한다. 방법론별
+  loss 계산 차이는 `compute_losses()`만 오버라이드하고, 모델 호출 규약이 다를 때만 전체 step을
+  오버라이드한다. 누적 결과는 `get_loss_results()`/`get_metric_results()`로 조회한다.
+- **구성 고정**: 각 Wrapper는 같은 폴더의 preprocessor와 postprocessor를 직접 생성해
+  `BaseWrapper`에 필수 인자로 전달하며, 선택적으로 주입하거나 런타임에 교체하지 않는다.
 - **loss 공통**: loss는 `src/losses/`에 `BaseLoss` 상속 클래스(loss당 파일 하나)로 두며,
   metrics와 대칭으로 모델 이름이 아닌 의미 기반 이름(`WingLoss` 등)으로 정의한다. 각 방법론
   wrapper가 `losses` dict로 이들을 조합해 쓴다.
@@ -104,6 +111,8 @@ src/
 항상 **같은 이름의 파일 4개**(`model.py`, `preprocessor.py`, `postprocessor.py`, `wrapper.py`)를
 가지며, 내용만 방법론별로 다르다. loss는 `src/losses/`의 재사용 클래스를 `wrapper.py`가
 `losses` dict로 조합해 쓴다. raw 출력 형태와 후처리 방식 차이는 다음과 같다 (구현 순서 순).
+각 파일의 대표 클래스는 대응하는 `BaseModel`/`BasePreprocessor`/`BasePostprocessor`/
+`BaseWrapper`를 직접 상속한다.
 
 | 방법론 | raw 출력 | 후처리 |
 |---|---|---|
@@ -117,7 +126,7 @@ src/
 | `doc` | (N, 8) 좌표 logits (사전학습 기반) | sigmoid + reshape |
 | `foundation` | (N, 8) 좌표 logits (frozen backbone) | sigmoid + reshape |
 | `line` | 직선 세그먼트 | 직선 그룹화 + 교점 계산 |
-| `torchseg` | (N, 1, H, W) quad 마스크 (torchvision seg 모델) | findContours + approxPolyDP (seg 재사용) |
+| `torchseg` | (N, 1, H, W) quad 마스크 (torchvision seg 모델) | findContours + approxPolyDP (독립 구현) |
 | `torchdet` | torchvision 검출 출력 (박스/라벨/점수) | 클래스별 top-1 박스 중심 |
 
 방법론 전용이면서 다른 방법론이 쓰지 않는 보조 연산(예: `line`의 직선 교점 계산)은
@@ -140,18 +149,18 @@ src/
   의미 기반 클래스로 추가).
 - `src/models/base/`의 4종 추상 클래스(공개 시그니처)를 변경하면 이미 구현된 모든 방법론에 동시 반영한다.
 - `scripts/` CLI 인수와 동작이 달라지면 전체 방법론에 동일하게 적용되도록 구현한다.
-- 방법론 구현 순서는 `PLAN.md`의 난이도/속도 기준 순서(direct -> homography -> heatmap -> seg
-  -> hybrid -> det -> gcn -> doc -> foundation -> line -> torchseg -> torchdet)를 따른다.
+- 방법론 구현 순서는 `PLAN.md`의 난이도/속도 기준 순서(direct $\to$ homography $\to$ heatmap $\to$ seg
+  $\to$ hybrid $\to$ det $\to$ gcn $\to$ doc $\to$ foundation $\to$ line $\to$ torchseg $\to$ torchdet)를 따른다.
 - 각 방법론은 `main`에서 분기한 `method/<name>` 브랜치(예: `method/direct`)에서 구현/학습/평가를
   진행하고, 검증을 마친 뒤 `main`에 merge한다. 다음 방법론 브랜치는 이전 방법론 merge 완료 후에
   분기한다.
 
 ## 6. 문서 및 코드 작성 규칙
 
-- 마크다운 문서와 코드 파일에 em dash, 유니코드 화살표(->, <- 등), 이모지를 사용하지 않는다.
-- 키보드에서 직접 입력 가능한 ASCII 문자만 사용한다. 화살표는 -> 또는 => 를 사용한다.
+- 마크다운 문서와 코드 파일에 em dash, 유니코드 화살표, 이모지를 사용하지 않는다.
+- 마크다운 문서에서 화살표 표기가 필요하면 `->` 대신 `$\to$`를 사용한다.
 - 단, 폴더 구조 트리에서는 ├, ─, │, └ 문자를 사용한다.
-- 폴더 구조와 파일 리스트는 탐색기와 동일한 형태/순서를 유지한다: 폴더 알파벳순 -> 파일 알파벳순.
+- 폴더 구조와 파일 리스트는 탐색기와 동일한 형태/순서를 유지한다: 폴더 알파벳순 $\to$ 파일 알파벳순.
 - `docs/` 하위 방법론 상세 보고서 작성 시 `docs/docs-plan.md`의 문서명/목차/템플릿을 따른다.
 
 ### 6.1 노트북 작성 규칙

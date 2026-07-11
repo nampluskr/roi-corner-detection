@@ -40,8 +40,8 @@ class Trainer:
         for images, targets in progress:
             batch = self.wrapper.train_step(images, targets)
             progress.set_postfix_str(format_result(batch))
-        result = self.wrapper.compute_losses()
-        result.update(self.wrapper.compute_metrics())
+        result = self.wrapper.get_loss_results()
+        result.update(self.wrapper.get_metric_results())
         return result
 
     def evaluate(self, dataloader):
@@ -51,8 +51,8 @@ class Trainer:
         for images, targets in progress:
             batch = self.wrapper.eval_step(images, targets)
             progress.set_postfix_str(format_result(batch))
-        result = self.wrapper.compute_losses()
-        result.update(self.wrapper.compute_metrics())
+        result = self.wrapper.get_loss_results()
+        result.update(self.wrapper.get_metric_results())
         return result
 
     def fit(self, train_loader, valid_loader=None, max_epochs=10):

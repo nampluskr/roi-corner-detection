@@ -43,15 +43,15 @@ flowchart TD
     preds["pred_corners.csv"]
     results["comparison/results.csv"]
 
-    prep --> train
-    train --> ckpt
-    train --> hist
-    ckpt --> eval
-    ckpt --> predict
-    eval --> metrics
-    predict --> preds
-    ckpt --> bench
-    bench --> results
+    prep -$\to$ train
+    train -$\to$ ckpt
+    train -$\to$ hist
+    ckpt -$\to$ eval
+    ckpt -$\to$ predict
+    eval -$\to$ metrics
+    predict -$\to$ preds
+    ckpt -$\to$ bench
+    bench -$\to$ results
 ```
 
 배치 러너 `experiments/run.py`는 위 스크립트 중 `train.py`, `evaluate.py`, `predict.py`를
@@ -59,7 +59,7 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-    run["experiments/run.py"] --> t["train.py"] --> e["evaluate.py"] --> p["predict.py"]
+    run["experiments/run.py"] -$\to$ t["train.py"] -$\to$ e["evaluate.py"] -$\to$ p["predict.py"]
 ```
 
 모든 스크립트가 공유하는 주요 인수는 다음과 같다. 전체 인수 정의는 `scripts/config.py`의
@@ -179,7 +179,7 @@ python scripts/predict.py --method direct --max_epochs 50 --save
 
 ### 5.1. 전체 순차 실행 (--mode all)
 
-`--mode all`(기본값)은 각 mode를 `train -> evaluate -> predict` 순서로 실행한다. 각 mode
+`--mode all`(기본값)은 각 mode를 `train $\to$ evaluate $\to$ predict` 순서로 실행한다. 각 mode
 안에서 `CONFIGS`의 모든 조합을 순회한다.
 
 ```text

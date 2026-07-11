@@ -247,7 +247,7 @@ def _affine_matrix(angle, translate, scale, shear):
 
 
 def _perspective_matrix(src_pts, dst_pts):
-    # solves for the 3x3 homography H mapping src_pts -> dst_pts (4-point correspondence)
+    # solves for the 3x3 homography H mapping src_pts $\to$ dst_pts (4-point correspondence)
     a = np.zeros((8, 8), dtype=np.float64)
     b = np.zeros(8, dtype=np.float64)
     for i, ((x, y), (u, v)) in enumerate(zip(src_pts, dst_pts)):

@@ -6,3 +6,6 @@ __pycache__/
 outputs/
 .ipynb_checkpoints/
 /data/
+.tokensave
+.continue/
+.serena/

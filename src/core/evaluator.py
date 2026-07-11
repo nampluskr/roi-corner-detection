@@ -38,7 +38,7 @@ class Evaluator:
         self.wrapper.reset_metrics()
         for images, targets in tqdm(dataloader, desc="eval", leave=False, ascii=True):
             self.wrapper.eval_step(images, targets)
-        result = self.wrapper.compute_metrics()
+        result = self.wrapper.get_metric_results()
         self.logger.info(format_result(result))
         return result
 

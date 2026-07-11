@@ -5,8 +5,7 @@ import numpy as np
 import torch
 
 from src.models.base.base_postprocessor import BasePostprocessor
-from src.models.seg.postprocessor import SegPostprocessor
-from src.utils.geometry import order_corners, is_invalid_corners
+from src.utils.geometry import order_corners, is_invalid_corners, mask_to_corners
 
 CANNY_LOW = 50
 CANNY_HIGH = 150
@@ -15,6 +14,7 @@ HOUGH_MIN_LEN_FRAC = 0.15
 HOUGH_MAX_GAP = 10
 SUBPIX_WIN = 5
 SUBPIX_CRITERIA = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 40, 0.001)
+EPSILON_FRACTIONS = [0.02, 0.01, 0.03, 0.05, 0.08, 0.1]
 
 
 def _fit_line(points):
@@ -52,9 +52,6 @@ def _group_sides(segments, cx, cy):
 class HybridPostprocessor(BasePostprocessor):
     """Thresholds (N, 1, H, W) mask logits and returns (N, 4, 2) corners via Canny/Hough/cornerSubPix."""
 
-    def __init__(self):
-        self._fallback = SegPostprocessor()
-
     def __call__(self, raw_output):
         prob = torch.sigmoid(raw_output)[:, 0].cpu().numpy().astype(np.float32)
         masks = (prob > 0.5).astype(np.uint8)
@@ -68,7 +65,33 @@ class HybridPostprocessor(BasePostprocessor):
             pts = order_corners(pts / np.array([width, height], dtype=np.float32))
             if not is_invalid_corners(pts):
                 return pts
-        return self._fallback._extract(mask)
+        return self._extract_contour(mask)
+
+    def _extract_contour(self, mask):
+        height, width = mask.shape
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if not contours:
+            return np.full((4, 2), np.nan, dtype=np.float32)
+
+        contour = max(contours, key=cv2.contourArea)
+        quad = self._approx_quad(contour)
+        pts = quad / np.array([width, height], dtype=np.float32)
+        pts = order_corners(pts)
+        if is_invalid_corners(pts):
+            fallback = order_corners(mask_to_corners(mask))
+            if is_invalid_corners(fallback):
+                return np.full((4, 2), np.nan, dtype=np.float32)
+            return fallback
+        return pts
+
+    def _approx_quad(self, contour):
+        peri = cv2.arcLength(contour, True)
+        for frac in EPSILON_FRACTIONS:
+            approx = cv2.approxPolyDP(contour, frac * peri, True)
+            if len(approx) == 4:
+                return approx.reshape(4, 2).astype(np.float32)
+        rect = cv2.minAreaRect(contour)
+        return cv2.boxPoints(rect).astype(np.float32)
 
     def _corners_from_lines(self, mask, prob_map):
         ys, xs = np.where(mask > 0)

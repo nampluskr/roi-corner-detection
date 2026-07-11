@@ -22,8 +22,8 @@
 | 8 | `doc` | `models/08_document-pretrained.md` | [x] |
 | 9 | `foundation` | `models/09_foundation-adapter.md` | [x] |
 | 10 | `line` | `models/10_line-intersection.md` | [x] |
-| 11 | `torchseg` | `models/11_torchvision-segmentation.md` | [ ] |
-| 12 | `torchdet` | `models/12_torchvision-detection.md` | [ ] |
+| 11 | `torchseg` | `models/11_torchvision-segmentation.md` | [x] |
+| 12 | `torchdet` | `models/12_torchvision-detection.md` | [x] |
 
 방법론별 보고서 외에 다음 공통 문서를 `docs/common/`에 둔다. 공통 문서는 넘버링을 적용하지 않는다.
 
@@ -72,7 +72,7 @@
 - 수식, 각 항의 의미와 가중치, 선택 근거
 
 ### 2.4 후처리 이론
-- raw 출력 -> 코너 좌표 변환의 수학적 정의
+- raw 출력 $\to$ 코너 좌표 변환의 수학적 정의
 
 ## 3. 결론
 - 요약, 이 방법론이 적합한 조건, 향후 작업 (평가 결과는 부록 D 참조)
@@ -81,12 +81,12 @@
 - 공개 논문과 공개 구현만 수록. 번호 없는 섹션
 
 ## 부록 A. 데이터 인터페이스
-- preprocessor: 표준 코너 (N, 4, 2) -> 학습 타깃 변환 방식
-- postprocessor: raw 출력 -> 표준 코너 (N, 4, 2) 변환 방식
+- preprocessor: 표준 코너 (N, 4, 2) $\to$ 학습 타깃 변환 방식
+- postprocessor: raw 출력 $\to$ 표준 코너 (N, 4, 2) 변환 방식
 - 실패 모드 처리 (예: 4점 미검출 시 fallback)
 
 ## 부록 B. 학습 전략
-- 3단계 학습(사전학습 -> 합성 적응 -> 실측 파인튜닝) 적용 방식
+- 3단계 학습(사전학습 $\to$ 합성 적응 $\to$ 실측 파인튜닝) 적용 방식
 - 주요 하이퍼파라미터 (scripts/config.py DEFAULTS 기준)
 
 ## 부록 C. 제약 적합성 분석
@@ -118,5 +118,5 @@
   먼저 갱신한 뒤 보고서를 작성한다.
 - 문서 간 중복 서술을 피한다. 방법론 간 비교는 `common/roi-corner-detection-models.md`가
   담당하고, 각 보고서는 해당 방법론의 상세만 다룬다.
-- 작성 순서는 구현 순서(1 -> 10)를 따르되, 해당 방법론의 구현 Phase 완료 후 작성을
+- 작성 순서는 구현 순서(1 $\to$ 10)를 따르되, 해당 방법론의 구현 Phase 완료 후 작성을
   원칙으로 한다 (PLAN.md Phase 참조).
