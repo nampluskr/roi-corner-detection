@@ -24,14 +24,21 @@ hybrid, det, gcn, doc, foundation, line, torchseg, torchdet)을 공유 데이터
 - **실행 공통**: `src/core/trainer.py`의 `Trainer`, `src/core/evaluator.py`의 `Evaluator`,
   `src/core/predictor.py`의 `Predictor`는 방법론에 상관없이 `Wrapper` 인스턴스 하나만 받아
   동일하게 구동된다.
-- **step 공통**: `BaseWrapper`가 기본 `train_step`/`eval_step`과 scheduler를 제공한다. 방법론별
-  loss 계산 차이는 `compute_losses()`만 오버라이드하고, 모델 호출 규약이 다를 때만 전체 step을
+- **step 공통**: `BaseWrapper`가 기본 `train_step`/`eval_step`과 단순 대입 세터
+  `set_optimizer`/`set_scheduler`를 제공하며, 각 wrapper는 `__init__`에서 `set_optimizer` 다음에
+  `set_scheduler(self.scheduler or ReduceLROnPlateau(self.optimizer, ...))`로 기본 scheduler를
+  지정한다(optimizer의 `AdamW` 지정과 대칭, 커스텀은 `scheduler` 인자로 주입). 방법론별 loss
+  계산 차이는 `compute_losses()`만 오버라이드하고, 모델 호출 규약이 다를 때만 전체 step을
   오버라이드한다. 누적 결과는 `get_loss_results()`/`get_metric_results()`로 조회한다.
-- **구성 고정**: 각 Wrapper는 같은 폴더의 preprocessor와 postprocessor를 직접 생성해
-  `BaseWrapper`에 필수 인자로 전달하며, 선택적으로 주입하거나 런타임에 교체하지 않는다.
+- **구성 고정**: 각 Wrapper는 `super().__init__()` 앞에서 같은 폴더의 preprocessor와
+  postprocessor를 `preprocessor or XxxPreprocessor()` 형태로 지정해 `BaseWrapper`에 필수
+  인자로 전달한다. 인자로 주입되면 그 값을 쓰고 없으면 기본값을 생성하며(losses/metrics와
+  동일 취지), 런타임에 교체하지 않는다.
 - **loss 공통**: loss는 `src/losses/`에 `BaseLoss` 상속 클래스(loss당 파일 하나)로 두며,
   metrics와 대칭으로 모델 이름이 아닌 의미 기반 이름(`WingLoss` 등)으로 정의한다. 각 방법론
-  wrapper가 `losses` dict로 이들을 조합해 쓴다.
+  wrapper가 `losses` dict로 이들을 조합해 쓴다. `BaseLoss`는 `weight`(기본 1.0)를 가지며
+  `train_step`이 `loss_fn.weight`를 곱해 여러 loss를 가중합한다. `compute_losses`를
+  오버라이드할 때 반환 dict의 key는 `losses` dict의 key와 일치시킨다.
 - **출력 공통**: 모든 방법론의 `postprocessor.py`는 raw 출력을 표준 코너 좌표 `(N, 4, 2)`로
   변환하며, 그 이후 `pred_corners.csv` 스키마(`image_id,x1,y1,x2,y2,x3,y3,x4,y4`, 정규화 [0,1])와
   `src/metrics/`의 `BaseMetric` 상속 클래스(메트릭당 파일 하나)들의 공통 메트릭 적용은
@@ -67,13 +74,17 @@ src/
 │   ├── dataloader.py
 │   ├── dataset.py
 │   ├── images.py
-│   ├── labelme.py
 │   ├── midv2020.py
 │   ├── smartdoc.py
-│   ├── synthetic.py
 │   └── transforms.py
 ├── losses/
 │   ├── base_loss.py
+│   ├── bce_loss.py
+│   ├── cross_entropy_loss.py
+│   ├── dice_loss.py
+│   ├── focal_loss.py
+│   ├── mse_loss.py
+│   ├── smooth_l1_loss.py
 │   └── wing_loss.py
 ├── metrics/
 │   ├── base_metric.py
@@ -81,7 +92,8 @@ src/
 │   ├── mcd.py
 │   ├── pck.py
 │   ├── polygon_iou.py
-│   └── reprojection_error.py
+│   ├── reprojection_error.py
+│   └── success_rate.py
 ├── models/
 │   ├── base/
 │   │   ├── base_model.py
@@ -102,7 +114,10 @@ src/
 │   └── torchseg/    (동일 4개 파일)
 └── utils/
     ├── geometry.py
-    └── homography.py
+    ├── homography.py
+    ├── io.py
+    ├── measure.py
+    └── plot.py
 ```
 
 `configs/` 폴더는 두지 않는다. 하이퍼파라미터는 `scripts/config.py`의 `DEFAULTS` 딕셔너리로
