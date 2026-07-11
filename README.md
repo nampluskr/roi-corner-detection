@@ -64,7 +64,7 @@ F1-F5는 레거시 프로젝트 `_project/sources/P1-project-overview.md` 3절(P
 ## 3. 데이터 전략 (3단계)
 
 1. **Pre-training**: SmartDoc + MIDV-2020 (공개 데이터, 일반 코너 검출 학습)
-2. **Domain Adaptation**: 합성 Fringe 패턴 이미지 (검사 도메인 적응, `src/data/synthetic.py`로 생성)
+2. **Domain Adaptation**: 합성 Fringe 패턴 이미지 (검사 도메인 적응, `scripts/generate_synthetic_labelme.py`로 생성)
 3. **Fine-tuning**: 실측 PMD 데이터 (소량, 최종 정밀도 확보)
 
 데이터 레이블링 방법론, 3단계 학습 전략의 근거, 합성 Fringe 패턴 생성 수식은
@@ -169,13 +169,17 @@ src/
 │   ├── dataloader.py
 │   ├── dataset.py
 │   ├── images.py
-│   ├── labelme.py
 │   ├── midv2020.py
 │   ├── smartdoc.py
-│   ├── synthetic.py
 │   └── transforms.py
 ├── losses/
 │   ├── base_loss.py
+│   ├── bce_loss.py
+│   ├── cross_entropy_loss.py
+│   ├── dice_loss.py
+│   ├── focal_loss.py
+│   ├── mse_loss.py
+│   ├── smooth_l1_loss.py
 │   └── wing_loss.py
 ├── metrics/
 │   ├── base_metric.py
@@ -183,7 +187,8 @@ src/
 │   ├── mcd.py
 │   ├── pck.py
 │   ├── polygon_iou.py
-│   └── reprojection_error.py
+│   ├── reprojection_error.py
+│   └── success_rate.py
 ├── models/
 │   ├── base/
 │   │   ├── base_model.py
@@ -208,7 +213,10 @@ src/
 │   └── torchseg/    (동일 4개 파일)
 └── utils/
     ├── geometry.py
-    └── homography.py
+    ├── homography.py
+    ├── io.py
+    ├── measure.py
+    └── plot.py
 ```
 
 각 방법론 폴더(`det/direct/doc/foundation/gcn/heatmap/homography/hybrid/line/seg/torchdet/torchseg`)는 항상
@@ -381,10 +389,9 @@ class GaussianNoise:
 (`[0.485, 0.456, 0.406]` / `[0.229, 0.224, 0.225]`)이며 `Normalize`/`Denormalize`의
 기본값으로 쓰인다.
 
-**`labelme.py` / `smartdoc.py` / `midv2020.py`**
+**`smartdoc.py` / `midv2020.py`**
 
 ```python
-def parse_labelme(json_dir, image_dir): ...   # $\to$ gt_corners.csv 형식 DataFrame
 def create_data(data_dir, output_path): ...   # smartdoc.py: data_dir 아래 frame_data.csv + images/ 구조 기대,
                                                # output_path에 gt_corners.csv 저장 (반환값 없음, pandas 미사용)
 def create_data(data_dir, output_path): ...   # midv2020.py: data_dir 아래 masks/ + images/ 구조 기대,
@@ -402,12 +409,8 @@ def create_data(data_dir, output_path): ...
 # output_path에 코너 컬럼 없는 image_dir,image_name CSV 저장 (ImageDataset용)
 ```
 
-**`synthetic.py`**
-
-```python
-def generate_fringe_image(A, B, f, phi, direction="horizontal"): ...
-# I(x, y) = A + B * cos(2 * pi * f * x + phi), Domain Adaptation 단계용 (F4 제약)
-```
+합성 Fringe 패턴 이미지와 LabelMe 형식 어노테이션 생성은 `src/data/`가 아니라
+`scripts/generate_synthetic_labelme.py`가 담당한다 (Domain Adaptation 단계용, F4 제약).
 
 ### 6.3 `src/metrics`
 

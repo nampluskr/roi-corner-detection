@@ -71,13 +71,17 @@ src/
 │   ├── dataloader.py
 │   ├── dataset.py
 │   ├── images.py
-│   ├── labelme.py
 │   ├── midv2020.py
 │   ├── smartdoc.py
-│   ├── synthetic.py
 │   └── transforms.py
 ├── losses/
 │   ├── base_loss.py
+│   ├── bce_loss.py
+│   ├── cross_entropy_loss.py
+│   ├── dice_loss.py
+│   ├── focal_loss.py
+│   ├── mse_loss.py
+│   ├── smooth_l1_loss.py
 │   └── wing_loss.py
 ├── metrics/
 │   ├── base_metric.py
@@ -85,7 +89,8 @@ src/
 │   ├── mcd.py
 │   ├── pck.py
 │   ├── polygon_iou.py
-│   └── reprojection_error.py
+│   ├── reprojection_error.py
+│   └── success_rate.py
 ├── models/
 │   ├── base/
 │   │   ├── base_model.py
@@ -106,7 +111,10 @@ src/
 │   └── torchseg/    (동일 4개 파일)
 └── utils/
     ├── geometry.py
-    └── homography.py
+    ├── homography.py
+    ├── io.py
+    ├── measure.py
+    └── plot.py
 ```
 
 `configs/` 폴더는 두지 않는다. 하이퍼파라미터는 `scripts/config.py`의 `DEFAULTS` 딕셔너리로
