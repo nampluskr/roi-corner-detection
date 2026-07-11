@@ -14,6 +14,7 @@ BACKBONE_WEIGHTS = {
     "fcn_resnet50": "/mnt/d/backbones/fcn_resnet50_coco-1167a1af.pth",
     "deeplabv3_mobilenet_v3_large": "/mnt/d/backbones/deeplabv3_mobilenet_v3_large-fc3c493d.pth",
     "lraspp_mobilenet_v3_large": "/mnt/d/backbones/lraspp_mobilenet_v3_large-d234d4ea.pth",
+    "unet_mobilenet_v3_large": "/mnt/d/backbones/mobilenet_v3_large-8738ca79.pth",
 }
 
 BACKBONE_BUILDERS = {
@@ -24,6 +25,7 @@ BACKBONE_BUILDERS = {
     "fcn_resnet50": models.resnet50,
     "deeplabv3_mobilenet_v3_large": models.mobilenet_v3_large,
     "lraspp_mobilenet_v3_large": models.mobilenet_v3_large,
+    "unet_mobilenet_v3_large": models.mobilenet_v3_large,
 }
 
 DECODER_CHANNELS = [256, 128, 64, 32]
