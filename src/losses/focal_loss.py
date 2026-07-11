@@ -9,8 +9,8 @@ from src.losses.base_loss import BaseLoss
 class FocalLoss(BaseLoss):
     """Binary focal loss down-weighting easy negatives via a (1 - p_t)^gamma factor."""
 
-    def __init__(self, alpha=0.25, gamma=2.0):
-        super().__init__()
+    def __init__(self, alpha=0.25, gamma=2.0, weight=1.0):
+        super().__init__(weight=weight)
         self.alpha = alpha
         self.gamma = gamma
 

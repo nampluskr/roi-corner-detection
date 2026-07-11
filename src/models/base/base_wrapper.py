@@ -7,23 +7,21 @@ class BaseWrapper:
     """Base class resolving device placement and exposing train/eval/predict step methods."""
 
     def __init__(self, model, preprocessor, postprocessor, optimizer=None,
-                 losses=None, metrics=None, device=None):
-        self.set_device(device)
+                 scheduler=None, losses=None, metrics=None, device=None):
+        self.device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model = model.to(self.device)
-        self.set_optimizer(optimizer)
-        self.scheduler = None
         self.preprocessor = preprocessor
         self.postprocessor = postprocessor
+        self.set_optimizer(optimizer)
+        self.set_scheduler(scheduler)
         self.set_losses(losses)
         self.set_metrics(metrics)
 
-    def set_device(self, device):
-        self.device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        if hasattr(self, "model"):
-            self.model = self.model.to(self.device)
-
     def set_optimizer(self, optimizer):
         self.optimizer = optimizer
+
+    def set_scheduler(self, scheduler):
+        self.scheduler = scheduler
 
     def set_losses(self, losses=None):
         self.losses = losses or {}
@@ -61,9 +59,7 @@ class BaseWrapper:
         return {name: metric.compute() for name, metric in self.metrics.items()}
 
     def on_fit_start(self, max_epochs):
-        self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            self.optimizer, mode="max", factor=0.5, patience=2,
-            threshold=1e-4, threshold_mode="abs", min_lr=1e-7)
+        pass
 
     def on_epoch_end(self, valid_score=None):
         if self.scheduler is None:
@@ -82,7 +78,7 @@ class BaseWrapper:
         self.optimizer.zero_grad()
         raw_output = self.model(images)
         losses = self.compute_losses(raw_output, targets)
-        loss = sum(losses.values())
+        loss = sum(self.losses[name].weight * value for name, value in losses.items())
         loss.backward()
         self.optimizer.step()
 

@@ -1,6 +1,8 @@
 # src/models/seg/wrapper.py: composes SegModel/Preprocessor/Postprocessor and BCE + Dice losses
 
 import torch
+from torch.optim import AdamW
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from src.models.base.base_wrapper import BaseWrapper
 from src.models.seg.model import SegModel
@@ -14,18 +16,20 @@ from src.metrics.polygon_iou import PolygonIoU
 class SegWrapper(BaseWrapper):
     """Wraps SegModel training/evaluation/inference behind the shared Trainer/Evaluator/Predictor interface."""
 
-    def __init__(self, backbone="resnet50", optimizer=None, losses=None,
-                 metrics=None, device=None):
+    def __init__(self, backbone="resnet50", optimizer=None, scheduler=None,
+                 preprocessor=None, postprocessor=None, losses=None, metrics=None, device=None):
         model = SegModel(backbone=backbone, pretrained=True)
-        preprocessor = SegPreprocessor()
-        postprocessor = SegPostprocessor()
+        preprocessor = preprocessor or SegPreprocessor()
+        postprocessor = postprocessor or SegPostprocessor()
         super().__init__(model, preprocessor, postprocessor, optimizer=optimizer,
-                         losses=losses, metrics=metrics, device=device)
-        param_groups = [
+                         scheduler=scheduler, losses=losses, metrics=metrics, device=device)
+        self.set_optimizer(self.optimizer or AdamW([
             {"params": self.model.backbone.parameters(), "lr": 1e-5},
             {"params": self.model.head.parameters(), "lr": 1e-4},
-        ]
-        self.set_optimizer(self.optimizer or torch.optim.AdamW(param_groups))
+        ]))
+        self.set_scheduler(self.scheduler or ReduceLROnPlateau(
+            self.optimizer, mode="max", factor=0.5, patience=2,
+            threshold=1e-4, threshold_mode="abs", min_lr=1e-7))
         self.set_losses(self.losses or {"bce": BCELoss(), "dice": DiceLoss()})
         self.set_metrics(self.metrics or {"iou": PolygonIoU()})
 

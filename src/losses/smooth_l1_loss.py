@@ -8,8 +8,8 @@ from src.losses.base_loss import BaseLoss
 class SmoothL1Loss(BaseLoss):
     """SmoothL1 (Huber) loss: quadratic for small errors, linear for large errors."""
 
-    def __init__(self, beta=1.0):
-        super().__init__()
+    def __init__(self, beta=1.0, weight=1.0):
+        super().__init__(weight=weight)
         self.beta = beta
 
     def forward(self, raw_output, target):

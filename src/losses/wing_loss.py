@@ -9,8 +9,8 @@ from src.losses.base_loss import BaseLoss
 class WingLoss(BaseLoss):
     """Wing loss: log penalty for small errors, linear penalty for large errors."""
 
-    def __init__(self, apply_sigmoid=False, w=10.0, epsilon=2.0):
-        super().__init__()
+    def __init__(self, apply_sigmoid=False, w=10.0, epsilon=2.0, weight=1.0):
+        super().__init__(weight=weight)
         self.apply_sigmoid = apply_sigmoid
         self.w = w
         self.epsilon = epsilon

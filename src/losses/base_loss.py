@@ -3,7 +3,8 @@
 class BaseLoss:
     """Base class computing a batch-mean loss tensor and accumulating its running mean."""
 
-    def __init__(self):
+    def __init__(self, weight=1.0):
+        self.weight = weight
         self.reset()
 
     def reset(self):
