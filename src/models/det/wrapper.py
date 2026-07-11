@@ -1,22 +1,27 @@
-# src/models/seg/wrapper.py: composes SegModel/Preprocessor/Postprocessor and BCE + Dice losses
+# src/models/det/wrapper.py: composes DetModel/Preprocessor/Postprocessor and focal/box/class losses
 
 import torch
 
 from src.models.base.base_wrapper import BaseWrapper
-from src.models.seg.model import SegModel
-from src.models.seg.preprocessor import SegPreprocessor
-from src.models.seg.postprocessor import SegPostprocessor
-from src.losses.bce_loss import BCELoss
-from src.losses.dice_loss import DiceLoss
+from src.models.det.model import DetModel
+from src.models.det.preprocessor import DetPreprocessor
+from src.models.det.postprocessor import DetPostprocessor
+from src.losses.focal_loss import FocalLoss
+from src.losses.smooth_l1_loss import SmoothL1Loss
+from src.losses.cross_entropy_loss import CrossEntropyLoss
 from src.metrics.polygon_iou import PolygonIoU
 
+LAMBDA_OBJ = 1.0
+LAMBDA_BOX = 5.0
+LAMBDA_CLS = 1.0
 
-class SegWrapper(BaseWrapper):
-    """Wraps SegModel training/evaluation/inference behind the shared Trainer/Evaluator/Predictor interface."""
+
+class DetWrapper(BaseWrapper):
+    """Wraps DetModel training/evaluation/inference behind the shared Trainer/Evaluator/Predictor interface."""
 
     def __init__(self, backbone="resnet50", optimizer=None, preprocessor=None,
                  postprocessor=None, losses=None, metrics=None, device=None):
-        model = SegModel(backbone=backbone, pretrained=True)
+        model = DetModel(backbone=backbone, pretrained=True)
         super().__init__(model, optimizer=optimizer,
                          preprocessor=preprocessor, postprocessor=postprocessor,
                          losses=losses, metrics=metrics, device=device)
@@ -25,15 +30,29 @@ class SegWrapper(BaseWrapper):
             {"params": self.model.head.parameters(), "lr": 1e-4},
         ]
         self.set_optimizer(self.optimizer or torch.optim.AdamW(param_groups))
-        self.set_preprocessor(self.preprocessor or SegPreprocessor())
-        self.set_postprocessor(self.postprocessor or SegPostprocessor())
-        self.set_losses(self.losses or {"bce": BCELoss(), "dice": DiceLoss()})
+        self.set_preprocessor(self.preprocessor or DetPreprocessor())
+        self.set_postprocessor(self.postprocessor or DetPostprocessor())
+        self.set_losses(self.losses or {"obj": FocalLoss(), "box": SmoothL1Loss(),
+                                        "cls": CrossEntropyLoss()})
         self.set_metrics(self.metrics or {"iou": PolygonIoU()})
 
     def on_fit_start(self, max_epochs):
         self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             self.optimizer, mode="max", factor=0.5, patience=2,
             threshold=1e-4, threshold_mode="abs", min_lr=1e-7)
+
+    def _compute_loss(self, raw_output, targets):
+        size = int(round(raw_output.shape[1] ** 0.5))
+        obj_t, box_t, cls_t, pos_mask = self.preprocessor(targets, size=size)
+        obj_logits = raw_output[..., 0]
+        box_pred = raw_output[..., 1:5]
+        cls_logits = raw_output[..., 5:9]
+
+        loss = LAMBDA_OBJ * self.losses["obj"](obj_logits, obj_t)
+        if pos_mask.any():
+            loss = loss + LAMBDA_BOX * self.losses["box"](box_pred[pos_mask], box_t[pos_mask])
+            loss = loss + LAMBDA_CLS * self.losses["cls"](cls_logits[pos_mask], cls_t[pos_mask])
+        return loss
 
     def train_step(self, images, targets):
         self.model.train()
@@ -42,8 +61,7 @@ class SegWrapper(BaseWrapper):
 
         self.optimizer.zero_grad()
         raw_output = self.model(images)
-        target = self.preprocessor(targets, size=raw_output.shape[-1])
-        loss = sum(loss_fn(raw_output, target) for loss_fn in self.losses.values())
+        loss = self._compute_loss(raw_output, targets)
         loss.backward()
         self.optimizer.step()
 
@@ -61,9 +79,7 @@ class SegWrapper(BaseWrapper):
         targets = targets.to(self.device, non_blocking=True)
 
         raw_output = self.model(images)
-        target = self.preprocessor(targets, size=raw_output.shape[-1])
-        for loss_fn in self.losses.values():
-            loss_fn(raw_output, target)
+        self._compute_loss(raw_output, targets)
         preds = self.postprocessor(raw_output).cpu().numpy()
 
         self.update_metrics(preds, targets.cpu().numpy())

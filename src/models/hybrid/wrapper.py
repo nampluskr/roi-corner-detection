@@ -14,7 +14,7 @@ from src.metrics.polygon_iou import PolygonIoU
 class HybridWrapper(BaseWrapper):
     """Wraps HybridModel training/evaluation/inference behind the shared Trainer/Evaluator/Predictor interface."""
 
-    def __init__(self, backbone="unet_mobilenet_v3_large", optimizer=None, preprocessor=None,
+    def __init__(self, backbone="mobilenet_v3_large", optimizer=None, preprocessor=None,
                  postprocessor=None, losses=None, metrics=None, device=None):
         model = HybridModel(backbone=backbone, pretrained=True)
         super().__init__(model, optimizer=optimizer,

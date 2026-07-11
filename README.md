@@ -12,19 +12,24 @@
 | `heatmap` | Heatmap Keypoint Detection (카탈로그 B) | 3 | 4채널 heatmap + soft-argmax, 서브픽셀 정밀도 | 없음 | 중간 |
 | `seg` | Segmentation Corner (카탈로그 C) | 4 | quad 마스크 세그멘테이션 -> findContours + approxPolyDP | OpenCV(기존 사용) | 중간 |
 | `hybrid` | DL + Classical CV Hybrid (카탈로그 I) | 5 | Segmentation(MobileNetV3-UNet) + Canny/Hough/cornerSubPix | OpenCV(기존 사용) | 중간 |
-| `detect` | BBox Keypoint Detection (신규 설계) | 6 | 코너 4개를 작은 박스 객체로 검출 (클래스 = 코너 id), 박스 중심 -> 코너 | 없음 | 중간 |
+| `det` | BBox Keypoint Detection (신규 설계) | 6 | 코너 4개를 작은 박스 객체로 검출 (클래스 = 코너 id), 박스 중심 -> 코너 | 없음 | 중간 |
 | `gcn` | Polygon GCN (카탈로그 F) | 7 | 초기 코너 -> GCN 반복 정제 (1-3회) | 없음 | 높음 |
 | `doc` | Document Pretrained (카탈로그 J) | 8 | DocTr/DocScanner 파인튜닝, few-shot 적응 | DocTr 패키지(외부) | 높음 |
 | `foundation` | Foundation Adapter (카탈로그 H) | 9 | frozen DINOv2/SAM backbone + 경량 head, few-shot 상한 탐색 | DINOv2/SAM 가중치(외부) | 높음 |
 | `line` | Line Intersection (카탈로그 D) | 10 | 직선 검출(M-LSD 또는 Canny+Hough) + 교점 계산 | M-LSD 가중치(외부) | 중간 |
+| `torchseg` | Torchvision Segmentation Corner (신규, torchvision 재사용) | 11 | torchvision 세그멘테이션 모델(DeepLabV3/FCN/LR-ASPP) end-to-end + seg 후처리 재사용 | OpenCV(기존 사용), torchvision seg 가중치 | 낮음 |
+| `torchdet` | Torchvision Detection (신규, torchvision 재사용) | 12 | torchvision 검출 모델(Faster R-CNN/RetinaNet/SSD) end-to-end, 코너별 소형 박스 -> 박스 중심 | torchvision det 가중치(외부) | 중간 |
 
 구현 순서는 구현 난이도와 속도 기준으로 정렬한 착수 순서이며, 상세 근거는
 `docs/common/roi-corner-detection-implementation-order.md`를 참조한다. `direct`를 베이스라인으로
 두고, 그 사촌인 `homography`(동일 FC head)와 외부 의존이 없는 `heatmap`을 앞에 둔다. `seg`는
 기존에 `hybrid`(I)의 세그멘테이션 단계로 흡수되어 있던 카탈로그 C를 독립 방법론으로 승격한
-것이고(그래서 `seg` 직후 `hybrid`가 마스크 model을 재사용한다), `detect`는 카탈로그 G
+것이고(그래서 `seg` 직후 `hybrid`가 마스크 model을 재사용한다), `det`는 카탈로그 G
 (DETR-style)가 아닌 바운딩박스 기반 keypoint detector로 새로 설계한 방법론이다. 외부
-가중치/패키지 의존이 있는 `doc`, `foundation`, `line`은 뒤로 둔다.
+가중치/패키지 의존이 있는 `doc`, `foundation`, `line`은 뒤로 둔다. 마지막의 `torchseg`,
+`torchdet`은 커스텀 model을 직접 설계하는 `seg`/`det`와 달리 torchvision의 세그멘테이션/
+검출 모델을 head까지 그대로(end-to-end) 재사용하는 라이브러리 기반 방법론으로, 커스텀 설계
+대비 성능/비용을 비교하기 위한 대조군이다 (`torchseg`는 `seg`, `torchdet`은 `det`와 대비).
 
 모든 방법론은 `src/models/base/`의 4종 추상 클래스(`BaseModel`, `BasePreprocessor`,
 `BasePostprocessor`, `BaseWrapper`)를 구현하고, 공유 `Trainer`/`Evaluator`/
@@ -33,7 +38,7 @@
 공통 `Dataloader`(`src/data/dataloader.py`)로부터 입력을 받고, 방법론별 전용
 `preprocessor.py`가 표준 코너 `(N, 4, 2)`를 해당 방법론의 학습 타깃으로 변환한다.
 방법론 간 성능 비교는 `experiments/benchmark.py`가 담당한다.
-10개 방법론의 상세 비교는 `docs/common/roi-corner-detection-models.md`를 참조한다.
+12개 방법론의 상세 비교는 `docs/common/roi-corner-detection-models.md`를 참조한다.
 
 ## 2. 핵심 제약 (F1-F8)
 
@@ -41,16 +46,16 @@
 |---|---|---|
 | F1 | 임의의 볼록 사각형 (OBB 아님, 원근 투영 결과) | 8개 자유 좌표 직접 회귀/검출. quad 전체를 box로 근사하는 접근 배제 (detect의 코너별 소형 박스는 무관) |
 | F2 | 단일 객체, 이미지의 50% 이상 차지 | 패널 검출 stage 불필요. 코너 간 거리가 충분해 detect의 클래스별 top-1 선택 안정 |
-| F3 | 4개 코너는 항상 이미지 경계 내부 | 회전 증강 +-5도 제한, clipping 검증 필수. detect 코너 박스는 경계 클리핑 처리 |
+| F3 | 4개 코너는 항상 이미지 경계 내부 | 회전 증강 +-5도 제한, clipping 검증 필수. det 코너 박스는 경계 클리핑 처리 |
 | F4 | 실측 데이터 적음, 합성 데이터 다수 | 3단계 학습 전략 (공개 데이터 -> 합성 -> 실측 파인튜닝). doc/foundation이 F4 대응책, gcn/detect는 합성 단계 의존 큼 |
 | F5 | 서브픽셀 정밀도가 중요 (위상 복원용) | Reprojection Error를 IoU와 함께 필수 메트릭으로 추적. heatmap/hybrid는 태생적 서브픽셀, seg/detect는 cornerSubPix 후정제 옵션 |
 | F6 | CPU 배포 지연/모델 크기 제약 (예산 TBD) | `experiments/benchmark.py`가 GPU/CPU latency, 모델 크기 필수 측정. 경량 방법론(hybrid, line, homography) 우선순위 근거 |
 | F7 | 조명/글레어/비네팅 변동 존재 | ColorJitter, GaussianBlur, GaussianNoise 광학 증강 필수. 합성 fringe에 반사/글레어 시뮬레이션 포함 |
-| F8 | 패널 가림 없음 (검사 환경 보장) | 후처리 단순화 근거 - line 4변 그룹화, seg 단일 컨투어 가정, detect 클래스별 정확히 1개 검출 가정 |
+| F8 | 패널 가림 없음 (검사 환경 보장) | 후처리 단순화 근거 - line 4변 그룹화, seg 단일 컨투어 가정, det 클래스별 정확히 1개 검출 가정 |
 
 F1-F5는 레거시 프로젝트 `_project/sources/P1-project-overview.md` 3절(PMD fringe 패턴
 패널 검사 도메인 사실)에서 유래했고, F6-F8은 레거시에서 미결/비공식 항목으로 남아 있던
-것을 10개 방법론 확장 시점에 정식 제약으로 승격한 것이다.
+것을 방법론 확장 시점에 정식 제약으로 승격한 것이다.
 
 ## 3. 데이터 전략 (3단계)
 
@@ -69,7 +74,7 @@ F1-F5는 레거시 프로젝트 `_project/sources/P1-project-overview.md` 3절(P
 | MCD (Mean Corner Distance) | 평균 좌표 오차 | [0, inf) | 작을수록 좋음 | 같은 순번 코너 쌍의 유클리드 거리를 4개 코너에 대해 평균 |
 | MaxCD (Max Corner Distance) | 최악 좌표 오차 | [0, inf) | 작을수록 좋음 | 4개 코너 중 최대 거리. 코너 하나의 큰 오차(worst-case)를 탐지 |
 | Reprojection Error | 기하 변환 품질 | [0, inf) | 작을수록 좋음 | 기준점 집합을 예측 코너 기반 호모그래피 $H_P$와 정답 코너 기반 호모그래피 $H_G$로 각각 투영한 뒤 그 차이를 평균. 위상 복원(원근 보정) 품질과 직결되는 핵심 지표 |
-| SR (Success Rate) | 검출 성공 비율 | [0, 1] | 클수록 좋음 | 표준 코너 (4,2)를 반환한 표본 비율. 후처리 실패 모드가 있는 방법론(seg/detect/line/hybrid)의 공정 비교 필수 지표 |
+| SR (Success Rate) | 검출 성공 비율 | [0, 1] | 클수록 좋음 | 표준 코너 (4,2)를 반환한 표본 비율. 후처리 실패 모드가 있는 방법론(seg/det/line/hybrid)의 공정 비교 필수 지표 |
 | PCK@tau | 임계값 내 성공 비율 | [0, 1] | 클수록 좋음 | MaxCD가 임계값 tau 이하인 표본 비율 (tau는 픽셀 기준, 기본 2px/5px을 정규화 좌표로 환산해 적용) |
 | GPU/CPU latency, 모델 크기 | 배포 적합성 | - | 작을수록 좋음 | `experiments/benchmark.py`로 측정. latency는 전처리 -> 추론 -> 후처리 end-to-end 기준, warm-up 후 반복 측정 평균 |
 
@@ -106,7 +111,7 @@ roi-corner-detection/
 │   ├── models/
 │   └── results/
 ├── outputs/
-│   ├── detect/
+│   ├── det/
 │   ├── direct/
 │   ├── doc/
 │   ├── foundation/
@@ -116,6 +121,8 @@ roi-corner-detection/
 │   ├── hybrid/
 │   ├── line/
 │   ├── seg/
+│   ├── torchdet/
+│   ├── torchseg/
 │   └── comparison/
 ├── scripts/
 │   ├── config.py
@@ -179,7 +186,7 @@ src/
 │   │   ├── base_postprocessor.py
 │   │   ├── base_preprocessor.py
 │   │   └── base_wrapper.py
-│   ├── detect/
+│   ├── det/
 │   │   ├── model.py
 │   │   ├── postprocessor.py
 │   │   ├── preprocessor.py
@@ -192,13 +199,15 @@ src/
 │   ├── homography/  (동일 4개 파일)
 │   ├── hybrid/      (동일 4개 파일)
 │   ├── line/        (동일 4개 파일)
-│   └── seg/         (동일 4개 파일)
+│   ├── seg/         (동일 4개 파일)
+│   ├── torchdet/    (동일 4개 파일)
+│   └── torchseg/    (동일 4개 파일)
 └── utils/
     ├── geometry.py
     └── homography.py
 ```
 
-각 방법론 폴더(`detect/direct/doc/foundation/gcn/heatmap/homography/hybrid/line/seg`)는 항상
+각 방법론 폴더(`det/direct/doc/foundation/gcn/heatmap/homography/hybrid/line/seg/torchdet/torchseg`)는 항상
 **같은 이름의 파일 4개**(`model.py`, `preprocessor.py`, `postprocessor.py`, `wrapper.py`)를 갖고,
 내용만 방법론별로 다르다. loss는 `src/losses`의 재사용 클래스를 `wrapper.py`가 조합해 쓴다.
 방법론 간 raw 출력 형태 차이는 다음과 같다 (구현 순서 순).
@@ -210,11 +219,13 @@ src/
 | `heatmap` | (N, 4, H, W) heatmap | corners -> gaussian heatmap | heatmap vs heatmap 타깃 | soft-argmax -> (N,4,2) |
 | `seg` | (N, 1, H, W) quad 마스크 | corners -> 채운 폴리곤 마스크 | mask vs 마스크 타깃 | findContours + approxPolyDP -> (N,4,2) |
 | `hybrid` | (N, 1, H, W) 세그멘테이션 마스크 | corners -> 마스크 | mask vs 마스크 타깃 | Canny+Hough+cornerSubPix -> (N,4,2) |
-| `detect` | (N, A, 5+4) 그리드 박스 예측 (obj, dx, dy, w, h, 4-class) | corners -> 코너별 고정 크기 박스 (클래스 = 코너 인덱스) | box 회귀 + objectness/class | 클래스별 top-1 박스 중심 -> (N,4,2) |
+| `det` | (N, A, 5+4) 그리드 박스 예측 (obj, dx, dy, w, h, 4-class) | corners -> 코너별 고정 크기 박스 (클래스 = 코너 인덱스) | box 회귀 + objectness/class | 클래스별 top-1 박스 중심 -> (N,4,2) |
 | `gcn` | 초기 코너 + GCN 반복 정제 출력 | corners (반복 단계별 supervision) | 반복 단계별 좌표 loss | 최종 반복 출력 -> (N,4,2) |
 | `doc` | (N, 8) 좌표 logits (사전학습 기반) | 정규화 좌표 그대로 | logits vs 좌표 타깃 | sigmoid + reshape (N,4,2) |
 | `foundation` | (N, 8) 좌표 logits (frozen backbone + 경량 head) | 정규화 좌표 그대로 | logits vs 좌표 타깃 | sigmoid + reshape (N,4,2) |
 | `line` | 직선 세그먼트 raw 출력 | corners -> 직선/엣지 타깃 | 직선 표현 loss | 직선 그룹화 + 교점 계산 -> (N,4,2) |
+| `torchseg` | (N, 1, H, W) quad 마스크 (torchvision seg 모델) | corners -> 채운 폴리곤 마스크 | mask vs 마스크 타깃 | findContours + approxPolyDP -> (N,4,2) (seg 재사용) |
+| `torchdet` | torchvision 검출 출력 (학습 시 loss dict, 추론 시 박스/라벨/점수) | corners -> 코너별 소형 박스 + 클래스(코너 id) | torchvision 내장 검출 loss | 클래스별 top-1 박스 중심 -> (N,4,2) |
 
 ### 6.1 `src/utils`
 
@@ -618,7 +629,7 @@ def parse_args(): ...          # 모든 스크립트가 공유하는 ArgumentPar
 
 | 인수 | 타입 | 기본값 | 설명 |
 |---|---|---|---|
-| `--method` | str | `direct` | 방법론 코드 (`direct`, `seg`, `detect`, ...) |
+| `--method` | str | `direct` | 방법론 코드 (`direct`, `seg`, `det`, ...) |
 | `--device` | str | `None` | 생략 시 자동선택, `cpu`/`cuda` 강제 지정 가능 |
 | `--batch_size` | int | `4` | 배치 크기 |
 | `--max_epochs` | int | `50` | 학습 에폭 수 (early stopping 시 상한) |

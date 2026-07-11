@@ -1,4 +1,4 @@
-# BBox Keypoint Detection (detect)
+# BBox Keypoint Detection (det)
 
 ## 초록
 
