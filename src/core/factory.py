@@ -91,6 +91,9 @@ def get_wrapper(method, device=None, **kwargs):
     elif method == "det":
         from src.models.det.wrapper import DetWrapper
         return DetWrapper(device=device, **kwargs)
+    elif method == "gcn":
+        from src.models.gcn.wrapper import GCNWrapper
+        return GCNWrapper(device=device, **kwargs)
     elif method == "torchseg":
         from src.models.torchseg.wrapper import TorchsegWrapper
         return TorchsegWrapper(device=device, **kwargs)
