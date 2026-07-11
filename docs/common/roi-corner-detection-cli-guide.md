@@ -19,7 +19,7 @@ updated: 2026-07-10
 환경 `pytorch_env`를 전제로 한다.
 
 현재 dispatch가 구현된 방법론은 `direct` 하나이며, 이 가이드의 모든 예시는 `direct`를
-기준으로 한다. 다른 방법론(`seg`, `detect`, `heatmap`, `hybrid`, `line`, `doc`,
+기준으로 한다. 다른 방법론(`seg`, `det`, `heatmap`, `hybrid`, `line`, `doc`,
 `homography`, `foundation`, `gcn`)은 구현이 완료되면 `--method` 값만 바꿔 동일한 방식으로
 사용한다.
 

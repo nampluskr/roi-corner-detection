@@ -4,14 +4,14 @@
 
 ## 1. 프로젝트 개요
 
-평면 사각형 객체의 4개 코너 좌표를 검출하는 10개 방법론(direct, homography, heatmap, seg,
-hybrid, detect, gcn, doc, foundation, line)을 공유 데이터/평가 파이프라인 위에서
-구현하고 성능을 비교하는 단일 PyTorch 프로젝트이다.
+평면 사각형 객체의 4개 코너 좌표를 검출하는 12개 방법론(direct, homography, heatmap, seg,
+hybrid, det, gcn, doc, foundation, line, torchseg, torchdet)을 공유 데이터/평가 파이프라인
+위에서 구현하고 성능을 비교하는 단일 PyTorch 프로젝트이다.
 방법론 목록과 구현 순서, 제약(F1-F8)은 `README.md`를 참조한다.
 
 ## 2. 통합 원칙
 
-이 프로젝트는 task 축이 "코너 좌표 검출" 하나뿐이고, 방법론(10개) 차이는 raw 출력 형태
+이 프로젝트는 task 축이 "코너 좌표 검출" 하나뿐이고, 방법론(12개) 차이는 raw 출력 형태
 자체(좌표/마스크/박스/heatmap/직선 등)가 다르다. 따라서 다음 두 축으로 공통성을 확보한다.
 
 - **인터페이스 공통**: 모든 방법론은 `src/models/base/`의 4종 추상 클래스(`BaseModel`,
@@ -78,7 +78,7 @@ src/
 │   │   ├── base_postprocessor.py
 │   │   ├── base_preprocessor.py
 │   │   └── base_wrapper.py
-│   ├── detect/      (model.py, postprocessor.py, preprocessor.py, wrapper.py)
+│   ├── det/      (model.py, postprocessor.py, preprocessor.py, wrapper.py)
 │   ├── direct/      (동일 4개 파일)
 │   ├── doc/         (동일 4개 파일)
 │   ├── foundation/  (동일 4개 파일)
@@ -87,7 +87,9 @@ src/
 │   ├── homography/  (동일 4개 파일)
 │   ├── hybrid/      (동일 4개 파일)
 │   ├── line/        (동일 4개 파일)
-│   └── seg/         (동일 4개 파일)
+│   ├── seg/         (동일 4개 파일)
+│   ├── torchdet/    (동일 4개 파일)
+│   └── torchseg/    (동일 4개 파일)
 └── utils/
     ├── geometry.py
     └── homography.py
@@ -98,8 +100,8 @@ src/
 
 ## 4. 방법론별 전용 파일
 
-각 방법론 폴더(`detect/direct/doc/foundation/gcn/heatmap/homography/hybrid/line/seg`)는 항상
-**같은 이름의 파일 4개**(`model.py`, `preprocessor.py`, `postprocessor.py`, `wrapper.py`)를
+각 방법론 폴더(`det/direct/doc/foundation/gcn/heatmap/homography/hybrid/line/seg/torchdet/torchseg`)는
+항상 **같은 이름의 파일 4개**(`model.py`, `preprocessor.py`, `postprocessor.py`, `wrapper.py`)를
 가지며, 내용만 방법론별로 다르다. loss는 `src/losses/`의 재사용 클래스를 `wrapper.py`가
 `losses` dict로 조합해 쓴다. raw 출력 형태와 후처리 방식 차이는 다음과 같다 (구현 순서 순).
 
@@ -110,11 +112,13 @@ src/
 | `heatmap` | (N, 4, H, W) heatmap | soft-argmax |
 | `seg` | (N, 1, H, W) quad 마스크 | findContours + approxPolyDP |
 | `hybrid` | (N, 1, H, W) 세그멘테이션 마스크 | Canny + Hough + cornerSubPix |
-| `detect` | (N, A, 5+4) 그리드 박스 예측 | 클래스별 top-1 박스 중심 |
+| `det` | (N, A, 5+4) 그리드 박스 예측 | 클래스별 top-1 박스 중심 |
 | `gcn` | 초기 코너 + GCN 반복 정제 출력 | 최종 반복 출력 |
 | `doc` | (N, 8) 좌표 logits (사전학습 기반) | sigmoid + reshape |
 | `foundation` | (N, 8) 좌표 logits (frozen backbone) | sigmoid + reshape |
 | `line` | 직선 세그먼트 | 직선 그룹화 + 교점 계산 |
+| `torchseg` | (N, 1, H, W) quad 마스크 (torchvision seg 모델) | findContours + approxPolyDP (seg 재사용) |
+| `torchdet` | torchvision 검출 출력 (박스/라벨/점수) | 클래스별 top-1 박스 중심 |
 
 방법론 전용이면서 다른 방법론이 쓰지 않는 보조 연산(예: `line`의 직선 교점 계산)은
 공유 `src/utils/`로 승격하지 않고 해당 방법론 폴더 내부(`postprocessor.py` 등)에 둔다.
@@ -123,6 +127,13 @@ src/
 ## 5. 작업 규칙
 
 - 코드 작성 시 `README.md`에 정의된 스켈레톤과 시그니처를 반드시 적용한다. `README.md`를 SSOT로 삼는다.
+- 방법론 모델을 구현하거나 성능을 평가할 때는 해당 방법론의 `docs/models/` 상세 문서를 반드시 참조한다.
+  방법론 파일명은 구현 순서 번호를 접두어로 갖는다 (`01_direct-coordinate-regression`,
+  `02_homography-regression`, `03_heatmap-keypoint-detection`, `04_segmentation-corner`,
+  `05_dl-classical-cv-hybrid`, `06_bbox-keypoint-detection`, `07_polygon-gcn`,
+  `08_document-pretrained`, `09_foundation-adapter`, `10_line-intersection`,
+  `11_torchvision-segmentation`, `12_torchvision-detection`).
+  문서의 설계(head 구조, 학습 타깃, loss, 후처리, 평가 기준)와 구현/평가가 어긋나면 문서를 기준으로 조정한다.
 - 새 방법론을 추가할 때는 `src/models/<name>/`에 4개 파일(model/preprocessor/postprocessor/wrapper)만
   추가하고 `src/core/`, `src/data/`, `src/losses/`, `src/metrics/`, `src/utils/`는 수정하지 않는다
   (필요 시 `factory.py`의 `get_wrapper` dispatch 분기만 추가, 새 loss가 필요하면 `src/losses/`에
@@ -130,7 +141,7 @@ src/
 - `src/models/base/`의 4종 추상 클래스(공개 시그니처)를 변경하면 이미 구현된 모든 방법론에 동시 반영한다.
 - `scripts/` CLI 인수와 동작이 달라지면 전체 방법론에 동일하게 적용되도록 구현한다.
 - 방법론 구현 순서는 `PLAN.md`의 난이도/속도 기준 순서(direct -> homography -> heatmap -> seg
-  -> hybrid -> detect -> gcn -> doc -> foundation -> line)를 따른다.
+  -> hybrid -> det -> gcn -> doc -> foundation -> line -> torchseg -> torchdet)를 따른다.
 - 각 방법론은 `main`에서 분기한 `method/<name>` 브랜치(예: `method/direct`)에서 구현/학습/평가를
   진행하고, 검증을 마친 뒤 `main`에 merge한다. 다음 방법론 브랜치는 이전 방법론 merge 완료 후에
   분기한다.
@@ -200,5 +211,5 @@ MNIST 프로젝트 세부 참조 대상:
 
 - [[README]] - SSOT: 방법론 카탈로그, 폴더 구조, 모듈 시그니처
 - [[PLAN]] - Phase별 작업 계획 및 검증 방법
-- [[roi-corner-detection-models]] - 10개 방법론 상세 비교 (`docs/common/roi-corner-detection-models.md`)
+- [[roi-corner-detection-models]] - 12개 방법론 상세 비교 (`docs/common/roi-corner-detection-models.md`)
 - [[docs-plan]] - 방법론 상세 보고서 문서명/목차/템플릿 (`docs/docs-plan.md`)

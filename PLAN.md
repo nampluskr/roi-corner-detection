@@ -26,18 +26,21 @@ MNIST 프로젝트의 "프레임워크 축 통합"과는 다르지만, 레거시
 
 ## 2. 확정된 결정 사항
 
-1. **방법론 범위**: 총 10개 모델 채택. 구현 순서는 난이도/속도 기준으로 정렬한다 -
+1. **방법론 범위**: 총 12개 모델 채택. 구현 순서는 난이도/속도 기준으로 정렬한다 -
    1.direct(A), 2.homography(E), 3.heatmap(B), 4.seg(C, Segmentation Corner를 hybrid에서
-   독립 승격), 5.hybrid(I), 6.detect(신규 설계, 바운딩박스 기반 keypoint detector. 카탈로그
-   G의 DETR 방식이 아님), 7.gcn(F), 8.doc(J), 9.foundation(H), 10.line(D). 상세 근거는
+   독립 승격), 5.hybrid(I), 6.det(신규 설계, 바운딩박스 기반 keypoint detector. 카탈로그
+   G의 DETR 방식이 아님), 7.gcn(F), 8.doc(J), 9.foundation(H), 10.line(D),
+   11.torchseg(신규, torchvision 세그멘테이션 모델 end-to-end. seg 대조군),
+   12.torchdet(신규, torchvision 검출 모델 end-to-end. det 대조군). 상세 근거는
    `docs/common/roi-corner-detection-implementation-order.md`, 방법론 비교는
    `docs/common/roi-corner-detection-models.md` 참조
 2. **git 저장소 및 브랜치 전략**: `roi-corner-detection`는 워크스페이스와 별도로 자체 git
    저장소로 init (GitHub remote 연결은 사용자가 추후 직접 진행). 방법론별 구현은 `main`에서
    분기한 `method/<name>` 브랜치(예: `method/direct`, `method/seg`)에서 진행하고, 해당
    방법론의 학습/평가 검증까지 마친 뒤 `main`에 merge한다. 방법론 순서는 난이도/속도 기준
-   구현 순서(direct -> homography -> heatmap -> seg -> hybrid -> detect -> gcn -> doc
-   -> foundation -> line)를 따르며, 한 방법론의 merge가 끝난 뒤 다음 방법론 브랜치를 분기한다.
+   구현 순서(direct -> homography -> heatmap -> seg -> hybrid -> det -> gcn -> doc
+   -> foundation -> line -> torchseg -> torchdet)를 따르며, 한 방법론의 merge가 끝난 뒤
+   다음 방법론 브랜치를 분기한다.
 3. **레거시 코드 재사용 방식**: 레거시 프로젝트의 Stage1-2 코드는 참조만 하고 완전 재구현
    (MNIST 프로젝트와 동일 원칙, 복사/심링크 금지)
 4. **루트 폴더**: `configs/` 없음. `data/`(정답/예측 CSV, git-ignore), `docs/`(설계 문서) 추가.
@@ -77,7 +80,7 @@ roi-corner-detection/
 │   ├── models/
 │   └── results/
 ├── outputs/
-│   ├── detect/ direct/ doc/ foundation/ gcn/ heatmap/ homography/ hybrid/ line/ seg/
+│   ├── det/ direct/ doc/ foundation/ gcn/ heatmap/ homography/ hybrid/ line/ seg/ torchdet/ torchseg/
 │   └── comparison/
 ├── scripts/
 │   ├── config.py
@@ -114,7 +117,7 @@ roi-corner-detection/
     │   │   ├── base_postprocessor.py
     │   │   ├── base_preprocessor.py
     │   │   └── base_wrapper.py
-    │   ├── detect/      (loss.py, model.py, postprocessor.py, preprocessor.py, wrapper.py)
+    │   ├── det/      (loss.py, model.py, postprocessor.py, preprocessor.py, wrapper.py)
     │   ├── direct/      (동일 5개 파일)
     │   ├── doc/         (동일 5개 파일)
     │   ├── foundation/  (동일 5개 파일)
@@ -123,7 +126,9 @@ roi-corner-detection/
     │   ├── homography/  (동일 5개 파일)
     │   ├── hybrid/      (동일 5개 파일)
     │   ├── line/        (동일 5개 파일)
-    │   └── seg/         (동일 5개 파일)
+    │   ├── seg/         (동일 5개 파일)
+    │   ├── torchdet/    (동일 5개 파일)
+    │   └── torchseg/    (동일 5개 파일)
     └── utils/
         ├── geometry.py
         └── homography.py
@@ -186,8 +191,8 @@ roi-corner-detection/
 
 ### Phase 3 - 나머지 방법론 순차 구현 (direct 검증 후 별도 세션 권장)
 
-구현 순서(난이도/속도): homography -> heatmap -> seg -> hybrid -> detect -> gcn ->
-doc -> foundation -> line
+구현 순서(난이도/속도): homography -> heatmap -> seg -> hybrid -> det -> gcn ->
+doc -> foundation -> line -> torchseg -> torchdet
 각 방법론은 `main`에서 분기한 `method/<name>` 브랜치에서 구현/학습/평가를 진행하며,
 `src/models/<name>/`에 5개 파일(model/preprocessor/postprocessor/loss/wrapper)만
 추가하고 `src/models/base/`, `src/core/`, `src/metrics/`, `src/utils/`를 그대로 재사용한다.
@@ -197,7 +202,7 @@ doc -> foundation -> line
 
 ### Phase 4 - 비교 프레임워크
 
-- `experiments/benchmark.py`: 10개 방법론 전체의 학습된 체크포인트로 동일 테스트셋 평가,
+- `experiments/benchmark.py`: 12개 방법론 전체의 학습된 체크포인트로 동일 테스트셋 평가,
   `outputs/comparison/results.csv` (Polygon IoU, MCD, Reprojection Error, GPU/CPU latency, 모델 크기) 생성
 - `notebooks/results/compare_methods.ipynb`: 방법론별 성능/속도 비교 표, 실패 케이스 시각화
 

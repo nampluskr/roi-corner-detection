@@ -1,6 +1,6 @@
 # docs-plan: 방법론 상세 보고서 작성 계획
 
-이 문서는 `docs/` 폴더에 작성할 10개 방법론 상세 보고서의 문서명, 섹션 수준 목차,
+이 문서는 `docs/` 폴더에 작성할 12개 방법론 상세 보고서의 문서명, 섹션 수준 목차,
 공통 템플릿을 정의한다. 실제 문서 작성 시 이 계획을 따르고, 작성 완료 시 아래
 체크리스트를 갱신한다. 방법론 개요와 구현 순서는 `common/roi-corner-detection-models.md`,
 제약 F1-F8과 모듈 시그니처는 `README.md`(SSOT)를 참조한다.
@@ -13,21 +13,23 @@
 | 구현 순서 | 코드 | 문서명 | 작성 상태 |
 |---:|---|---|---|
 | 1 | `direct` | `models/01_direct-coordinate-regression.md` | [x] |
-| 2 | `homography` | `models/02_homography-regression.md` | [ ] |
-| 3 | `heatmap` | `models/03_heatmap-keypoint-detection.md` | [ ] |
-| 4 | `seg` | `models/04_segmentation-corner.md` | [ ] |
-| 5 | `hybrid` | `models/05_dl-classical-cv-hybrid.md` | [ ] |
-| 6 | `detect` | `models/06_bbox-keypoint-detection.md` | [ ] |
-| 7 | `gcn` | `models/07_polygon-gcn.md` | [ ] |
-| 8 | `doc` | `models/08_document-pretrained.md` | [ ] |
-| 9 | `foundation` | `models/09_foundation-adapter.md` | [ ] |
-| 10 | `line` | `models/10_line-intersection.md` | [ ] |
+| 2 | `homography` | `models/02_homography-regression.md` | [x] |
+| 3 | `heatmap` | `models/03_heatmap-keypoint-detection.md` | [x] |
+| 4 | `seg` | `models/04_segmentation-corner.md` | [x] |
+| 5 | `hybrid` | `models/05_dl-classical-cv-hybrid.md` | [x] |
+| 6 | `det` | `models/06_bbox-keypoint-detection.md` | [x] |
+| 7 | `gcn` | `models/07_polygon-gcn.md` | [x] |
+| 8 | `doc` | `models/08_document-pretrained.md` | [x] |
+| 9 | `foundation` | `models/09_foundation-adapter.md` | [x] |
+| 10 | `line` | `models/10_line-intersection.md` | [x] |
+| 11 | `torchseg` | `models/11_torchvision-segmentation.md` | [ ] |
+| 12 | `torchdet` | `models/12_torchvision-detection.md` | [ ] |
 
 방법론별 보고서 외에 다음 공통 문서를 `docs/common/`에 둔다. 공통 문서는 넘버링을 적용하지 않는다.
 
 | 문서명 | 내용 | 작성 상태 |
 |---|---|---|
-| `common/roi-corner-detection-models.md` | 10개 방법론 비교 (표 + 방법론별 요약 + F1-F8 매핑) | [x] |
+| `common/roi-corner-detection-models.md` | 12개 방법론 비교 (표 + 방법론별 요약 + F1-F8 매핑) | [x] |
 | `common/roi-corner-detection-metrics.md` | 평가 메트릭 상세 (Polygon IoU, MCD, MaxCD, Reprojection Error) | [x] |
 | `common/roi-corner-detection-data-pipeline.md` | 데이터셋 라벨링 방법론(labelme, polygon vs mask, CSV 스키마 근거) + 3단계 학습 데이터 전략 + 합성 Fringe 패턴 생성 수식 | [x] |
 | `common/roi-corner-detection-cli-guide.md` | scripts/ CLI 및 experiments/run.py 사용 시나리오 운영 매뉴얼 (학습~비교) | [x] |
