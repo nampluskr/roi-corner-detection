@@ -141,7 +141,17 @@ $$
 
 이 연산으로 $C \times h \times w$ 특징 맵이 길이 $C$의 벡터가 된다. 공간 격자
 정보는 사라지지만, "이미지 전체에서 각 패턴이 얼마나 강하게 나타났는가"라는 전역
-요약이 남는다.
+요약이 남는다. 이 방법론은 가장 단순한 baseline으로서 GAP + FC 구조를 기본으로
+삼는다.
+
+**옵션: 공간 보존 head.** GAP는 공간 격자를 평균 하나로 붕괴시키므로, 코너가 어느
+위치에 있는지를 맞히는 데 필요한 위치 정보를 버린다. 구현은 GAP 대신 stride 2
+합성곱 두 층으로 격자를 유지한 채 축소한 뒤 flatten하는 공간 보존 head를 선택
+인자(`head_type="spatial"`)로 제공한다. backbone이 학습되는 조건에서도 공간 보존
+head가 GAP head보다 코너 회귀 정확도(예: Polygon IoU)가 유의미하게 높은 것이 실측
+으로 확인되었다. 기본값은 baseline 정체성을 유지하기 위해 GAP이며, 공간 보존 head는
+같은 좌표 회귀 경로(raw logits 8개 $\to$ sigmoid $\to$ reshape) 위에서 head 구조만
+바꾼 변형이다.
 
 **(3) 완전연결 계층(FC, Fully-Connected layer).** 길이 $C$의 벡터 $\mathbf{v}$를
 가중치 행렬 $W_{fc} \in \mathbb{R}^{8 \times C}$와 편향 $\mathbf{b} \in

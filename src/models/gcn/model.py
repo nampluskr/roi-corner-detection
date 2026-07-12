@@ -1,4 +1,4 @@
-# src/models/gcn/model.py: CNN backbone with initial regression head and iterative GCN corner refinement
+# src/models/gcn/model.py: CNN backbone with spatial-preserving initial head and iterative GCN corner refinement
 
 import torch
 import torch.nn as nn
@@ -41,7 +41,7 @@ def build_normalized_adjacency():
 
 
 class GCNModel(BaseModel):
-    """CNN backbone with a global regression head and a weight-shared GCN that iteratively refines corners."""
+    """CNN backbone with a spatial-preserving initial head and a weight-shared GCN that iteratively refines corners."""
 
     def __init__(self, backbone="resnet50", pretrained=True):
         super().__init__()
@@ -55,7 +55,15 @@ class GCNModel(BaseModel):
 
         in_channels = net.fc.in_features
         self.backbone = nn.Sequential(*list(net.children())[:-2])
-        self.init_head = nn.Linear(in_channels, NUM_CORNERS * 2)
+        self.init_head = nn.Sequential(
+            nn.Conv2d(in_channels, 128, kernel_size=3, stride=2, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(128, 64, kernel_size=3, stride=2, padding=1),
+            nn.ReLU(inplace=True),
+            nn.AdaptiveAvgPool2d(4),
+            nn.Flatten(),
+            nn.Linear(64 * 4 * 4, NUM_CORNERS * 2),
+        )
 
         gcn_layers = []
         input_dim = in_channels + 2
@@ -84,8 +92,7 @@ class GCNModel(BaseModel):
 
     def forward(self, images):
         features = self.backbone(images)
-        pooled = features.mean(dim=(2, 3))
-        corners = torch.sigmoid(self.init_head(pooled)).reshape(-1, NUM_CORNERS, 2)
+        corners = torch.sigmoid(self.init_head(features)).reshape(-1, NUM_CORNERS, 2)
 
         outputs = [corners]
         for _ in range(NUM_ITER):

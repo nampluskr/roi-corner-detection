@@ -22,9 +22,11 @@ class HomographyWrapper(BaseWrapper):
         postprocessor = postprocessor or HomographyPostprocessor()
         super().__init__(model, preprocessor, postprocessor, optimizer=optimizer,
                          scheduler=scheduler, losses=losses, metrics=metrics, device=device)
+        backbone_ids = {id(p) for p in self.model.backbone.parameters()}
+        head_params = [p for p in self.model.parameters() if id(p) not in backbone_ids]
         self.set_optimizer(self.optimizer or AdamW([
             {"params": self.model.backbone.parameters(), "lr": 1e-5},
-            {"params": self.model.fc.parameters(), "lr": 1e-4},
+            {"params": head_params, "lr": 1e-4},
         ]))
         self.set_scheduler(self.scheduler or ReduceLROnPlateau(
             self.optimizer, mode="max", factor=0.5, patience=2,

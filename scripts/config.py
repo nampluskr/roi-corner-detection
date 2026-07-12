@@ -22,6 +22,7 @@ DEFAULTS = {
 DEFAULT_BACKBONES = {
     "seg": "resnet50",
     "hybrid": "mobilenet_v3_large",
+    "line": "mlsd_large",
     "torchseg": "deeplabv3_resnet50",
     "torchdet": "fasterrcnn",
 }

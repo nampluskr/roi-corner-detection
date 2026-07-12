@@ -29,14 +29,19 @@
 
 | 문서명 | 내용 | 작성 상태 |
 |---|---|---|
-| `common/roi-corner-detection-models.md` | 12개 방법론 비교 (표 + 방법론별 요약 + F1-F8 매핑) | [x] |
-| `common/roi-corner-detection-metrics.md` | 평가 메트릭 상세 (Polygon IoU, MCD, MaxCD, Reprojection Error) | [x] |
-| `common/roi-corner-detection-data-pipeline.md` | 데이터셋 라벨링 방법론(labelme, polygon vs mask, CSV 스키마 근거) + 3단계 학습 데이터 전략 + 합성 Fringe 패턴 생성 수식 | [x] |
 | `common/roi-corner-detection-cli-guide.md` | scripts/ CLI 및 experiments/run.py 사용 시나리오 운영 매뉴얼 (학습~비교) | [x] |
+| `common/roi-corner-detection-data-pipeline.md` | 데이터셋 라벨링 방법론(labelme, polygon vs mask, CSV 스키마 근거) + 3단계 학습 데이터 전략 + 합성 Fringe 패턴 생성 수식 | [x] |
 | `common/roi-corner-detection-implementation-order.md` | 나머지 9개 방법론 구현 착수 순서 분석 (난이도/속도 기준 재정렬 + 절충안) | [x] |
+| `common/roi-corner-detection-loss-functions.md` | 7개 공통 손실 함수의 수식, gradient 특성, 다중 손실 결합과 방법론별 적용 | [x] |
+| `common/roi-corner-detection-metrics.md` | 평가 메트릭 상세 (Polygon IoU, MCD, MaxCD, Reprojection Error) | [x] |
+| `common/roi-corner-detection-models.md` | 12개 방법론 비교 (표 + 방법론별 요약 + F1-F8 매핑) | [x] |
+| `common/roi-corner-detection-spatial-information.md` | 특징 맵의 공간 정보, GAP 손실 원리, 공간 보존 구조와 방법론별 분석 | [x] |
+| `common/roi-corner-detection-warmup-training.md` | backbone 동결 warmup, 자동 해제, 차등 학습률과 Wrapper 구현 | [x] |
 
-공통 문서 중 `roi-corner-detection-metrics.md`, `roi-corner-detection-data-pipeline.md`는
-방법론 보고서와 동일한 작성 규칙(딥러닝 초보자 대상, 수식 적극 사용, 레거시 비인용)을 따른다.
+공통 문서 중 `roi-corner-detection-metrics.md`, `roi-corner-detection-data-pipeline.md`,
+`roi-corner-detection-loss-functions.md`, `roi-corner-detection-spatial-information.md`,
+`roi-corner-detection-warmup-training.md`는 방법론 보고서와 동일한 작성 규칙(딥러닝 초보자
+대상, 수식 적극 사용, 레거시 비인용)을 따른다.
 `roi-corner-detection-cli-guide.md`, `roi-corner-detection-implementation-order.md`는 학술
 보고서가 아닌 실행/계획 성격의 문서로, 서술체 docs-rules를 따르되 수식/논문 형식 규칙은
 적용하지 않는다.

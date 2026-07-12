@@ -1,4 +1,4 @@
-# src/models/homography/model.py: ResNet backbone with FC(8) offset head for homography regression
+# src/models/homography/model.py: ResNet backbone with a spatial-preserving strided-conv offset head
 
 import torch
 import torch.nn as nn
@@ -29,7 +29,7 @@ CANONICAL_CORNERS = [
 
 
 class HomographyModel(BaseModel):
-    """ResNet backbone with GAP and an FC(8) head predicting canonical-corner offsets."""
+    """ResNet backbone with a spatial-preserving strided-conv head predicting canonical-corner offsets."""
 
     def __init__(self, backbone="resnet50", pretrained=True):
         super().__init__()
@@ -41,13 +41,20 @@ class HomographyModel(BaseModel):
             state_dict = torch.load(BACKBONE_WEIGHTS[backbone], map_location="cpu", weights_only=True)
             net.load_state_dict(state_dict)
 
-        in_features = net.fc.in_features
-        net.fc = nn.Identity()
-        self.backbone = net
-        self.fc = nn.Linear(in_features, 8)
-        nn.init.zeros_(self.fc.weight)
-        nn.init.zeros_(self.fc.bias)
+        in_channels = net.fc.in_features
+        self.backbone = nn.Sequential(*list(net.children())[:-2])
+        self.head = nn.Sequential(
+            nn.Conv2d(in_channels, 128, kernel_size=3, stride=2, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(128, 64, kernel_size=3, stride=2, padding=1),
+            nn.ReLU(inplace=True),
+            nn.AdaptiveAvgPool2d(4),
+            nn.Flatten(),
+            nn.Linear(64 * 4 * 4, 8),
+        )
+        nn.init.zeros_(self.head[-1].weight)
+        nn.init.zeros_(self.head[-1].bias)
 
     def forward(self, images):
         features = self.backbone(images)
-        return self.fc(features)
+        return self.head(features)

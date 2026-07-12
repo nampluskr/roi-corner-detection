@@ -1,4 +1,4 @@
-# src/models/direct/model.py: ResNet backbone with FC(8) head for direct coordinate regression
+# src/models/direct/model.py: ResNet backbone with a selectable GAP (default) or spatial-preserving head
 
 import torch
 import torch.nn as nn
@@ -20,23 +20,37 @@ BACKBONE_BUILDERS = {
 
 
 class DirectModel(BaseModel):
-    """ResNet backbone with global average pooling and an FC(8) head for corner regression."""
+    """ResNet backbone with a selectable GAP+FC (default) or spatial-preserving head for corner regression."""
 
-    def __init__(self, backbone="resnet50", pretrained=True):
+    def __init__(self, backbone="resnet50", pretrained=True, head_type="gap"):
         super().__init__()
         if backbone not in BACKBONE_BUILDERS:
             raise ValueError("Unknown backbone: %s" % backbone)
+        if head_type not in ("gap", "spatial"):
+            raise ValueError("Unknown head_type: %s" % head_type)
 
         net = BACKBONE_BUILDERS[backbone](weights=None)
         if pretrained:
             state_dict = torch.load(BACKBONE_WEIGHTS[backbone], map_location="cpu", weights_only=True)
             net.load_state_dict(state_dict)
 
-        in_features = net.fc.in_features
-        net.fc = nn.Identity()
-        self.backbone = net
-        self.fc = nn.Linear(in_features, 8)
+        in_channels = net.fc.in_features
+        if head_type == "gap":
+            net.fc = nn.Identity()
+            self.backbone = net
+            self.head = nn.Linear(in_channels, 8)
+        else:
+            self.backbone = nn.Sequential(*list(net.children())[:-2])
+            self.head = nn.Sequential(
+                nn.Conv2d(in_channels, 128, kernel_size=3, stride=2, padding=1),
+                nn.ReLU(inplace=True),
+                nn.Conv2d(128, 64, kernel_size=3, stride=2, padding=1),
+                nn.ReLU(inplace=True),
+                nn.AdaptiveAvgPool2d(4),
+                nn.Flatten(),
+                nn.Linear(64 * 4 * 4, 8),
+            )
 
     def forward(self, images):
         features = self.backbone(images)
-        return self.fc(features)
+        return self.head(features)

@@ -108,16 +108,21 @@ $$
 
 ### 2.2 모델 구조
 
-모델 골격은 경량 회귀 구조(backbone $\to$ GAP $\to$ FC)이며, 차별점은 출력의 의미와
-활성화이다.
+모델 골격은 경량 회귀 구조(backbone $\to$ 공간 보존 head)이며, 차별점은 출력의
+의미와 활성화이다.
 
-**(1) Backbone과 GAP.** 합성곱 신경망(예: ResNet18)이 이미지에서 특징 맵
-$C \times h \times w$를 추출하고, 전역 평균 풀링(GAP)이 채널별 공간 평균으로
-길이 $C$의 벡터로 요약한다.
+**(1) Backbone과 공간 보존 head.** 합성곱 신경망(예: ResNet18)이 이미지에서 특징 맵
+$C \times h \times w$를 추출한다. 코너(및 그 offset) 회귀는 위치를 맞히는 문제이므로,
+전역 평균 풀링(GAP)으로 공간 격자를 평균 하나로 붕괴시키면 위치 정보가 파괴된다.
+따라서 GAP 대신 stride 2 합성곱 두 층으로 격자를 유지한 채 해상도를 축소한 뒤
+flatten하여 위치 정보를 보존한다.
 
 $$
-\mathbf{v} = \mathrm{GAP}\big(\mathrm{Backbone}(I)\big) \in \mathbb{R}^C
+\mathbf{v} = \mathrm{Flatten}\big(\mathrm{Conv}_{\downarrow}(\mathrm{Backbone}(I))\big)
 $$
+
+여기서 $\mathrm{Conv}_{\downarrow}$는 격자를 유지하며 축소하는 stride 합성곱 두 층,
+Flatten은 격자를 위치별 값 순서대로 벡터로 펼치는 연산이다(평균이 아님).
 
 **(2) FC와 offset 활성화.** 완전연결 계층이 8개 raw 값을 만들고, 크기가 제한된
 offset이 되도록 스케일된 tanh를 적용한다.
@@ -148,18 +153,17 @@ $\alpha \le m$ 부근으로 잡으면 $\mathbf{c}_k + \Delta_k$가 [0, 1]을 벗
 | 단계 | 연산 | 출력 shape | 의미 |
 |---|---|---|---|
 | 입력 | - | (N, 3, 512, 512) | 컬러 이미지 배치 |
-| Backbone | 합성곱 계층 다수 | (N, 512, 16, 16) | 전역 특징 맵 |
-| GAP | 채널별 공간 평균 | (N, 512) | 전역 요약 벡터 |
-| FC | 선형 변환 | (N, 8) | offset raw 값 |
+| Backbone | 합성곱 계층 다수 | (N, 512, 16, 16) | 공간 격자 특징 맵 |
+| stride conv x2 | 격자 유지 축소 | (N, 64, 4, 4) | 위치 정보 보존 축소 특징 |
+| Flatten + FC | 격자 펼침 + 선형 | (N, 8) | offset raw 값 |
 | tanh x alpha | 원소별 | (N, 8), 각 원소 $(-\alpha, \alpha)$ | 정준 꼭짓점 offset |
 
 ```text
 이미지 (3x512x512)
-   $\to$ [Backbone]         $\to$ 특징 맵 (512x16x16)
-   $\to$ [GAP]              $\to$ 특징 벡터 (512)
-   $\to$ [FC]               $\to$ raw (8)
-   $\to$ [alpha * tanh]     $\to$ offset (8) = (dx1,dy1,...,dx4,dy4)
-   $\to$ [+ 정준 꼭짓점]     $\to$ 코너 (4x2)
+   $\to$ [Backbone]                  $\to$ 특징 맵 (512x16x16)
+   $\to$ [stride conv x2 + Flatten + FC] $\to$ raw (8)
+   $\to$ [alpha * tanh]              $\to$ offset (8) = (dx1,dy1,...,dx4,dy4)
+   $\to$ [+ 정준 꼭짓점]              $\to$ 코너 (4x2)
 ```
 
 ### 2.3 손실 함수
