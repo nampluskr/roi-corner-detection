@@ -1,7 +1,7 @@
 # PLAN.md
 
 이 문서는 `roi-corner-detection` 프로젝트의 현재 구현 상태와 남은 작업을 관리하는
-로드맵이다. 모듈 구조와 공개 시그니처의 SSOT는 `README.md`이며, 이 문서는 상태, 구현
+로드맵이다. 모듈 구조와 공개 시그니처의 SSOT는 `README.md`이며, 이 문서는 상태, 검증
 순서, 완료 기준만 다룬다.
 
 ## 1. 프로젝트 범위와 구현 순서
@@ -40,23 +40,40 @@ $\to$ `foundation` $\to$ `line` $\to$ `torchseg` $\to$ `torchdet`
 - 코너 기하, 호모그래피 유틸, 공통 메트릭, 의미 기반 `BaseLoss` 계층
 - `Trainer`, `Evaluator`, `Predictor`, `factory`, 학습, 평가, 예측 CLI 파이프라인
 
-### 완료된 방법론
+### 구현 및 등록 완료 방법론
 
-`direct`, `homography`, `heatmap`, `seg`, `hybrid`, `det`, `torchseg`, `torchdet`은
-`main`에 구현 및 등록되어 있다.
+12개 방법론 모두 `src/models/<name>/`의 4개 전용 파일과 `factory.get_wrapper()` 등록을
+갖고 있으며, `main`에서 생성할 수 있다.
 
-### 남은 방법론
+| 코드 | 구현 상태 | 현재 구현 요약 |
+|---|---|---|
+| `direct` | 구현 및 등록 완료 | GAP 또는 공간 보존 head를 선택하는 직접 좌표 회귀 기준선 |
+| `homography` | 구현 및 등록 완료 | 정준 사각형 기준 bounded offset 회귀 |
+| `heatmap` | 구현 및 등록 완료 | deconvolution heatmap과 soft-argmax |
+| `seg` | 구현 및 등록 완료 | custom encoder-decoder mask 예측과 contour 후처리 |
+| `hybrid` | 구현 및 등록 완료 | mask 예측 후 Canny, Hough, cornerSubPix 정밀화 |
+| `det` | 구현 및 등록 완료 | 코너별 작은 box를 예측하는 custom grid detector |
+| `gcn` | 구현 및 등록 완료 | 초기 코너를 GCN으로 반복 정제 |
+| `doc` | 구현 및 등록 완료 | ImageNet ResNet, 공간 보존 head, backbone warmup |
+| `foundation` | 구현 및 등록 완료 | frozen DINOv2 patch grid와 경량 공간 보존 head |
+| `line` | 구현 및 등록 완료 | M-LSD MobileNetV2/FPN tp-map과 직선 교점 후처리 |
+| `torchseg` | 구현 및 등록 완료 | torchvision segmentation 모델 대조군 |
+| `torchdet` | 구현 및 등록 완료 | torchvision detection 모델 대조군 |
 
-`gcn` $\to$ `doc` $\to$ `foundation` $\to$ `line` 순서로 구현한다. 각 방법론은 해당
-`docs/models/` 상세 문서를 먼저 확인하고, `main`에서 `method/<name>` 브랜치를 분기하여
-구현, 검증, 병합을 완료한 뒤 다음 방법론으로 진행한다.
+여기서 구현 완료는 모듈 구조, 공통 인터페이스 연결, factory 등록을 뜻한다. 모든 방법론이
+동일한 데이터와 조건에서 충분히 수렴했고 성능이 검증되었다는 뜻은 아니다. 특히 `line`은
+초기 학습에서 낮은 IoU가 관찰되어 target, loss, 후처리 threshold를 포함한 안정화 검증이
+필요하다.
 
 ## 4. 남은 실행 단계와 완료 기준
 
-### Phase 1 - 잔여 방법론 구현
+### Phase 1 - 방법론별 통합 검증과 안정화
 
-- `gcn`, `doc`, `foundation`, `line`을 정해진 순서와 브랜치 전략에 따라 구현한다.
-- 새 방법론은 전용 4파일과 필요 시 `factory.get_wrapper()` dispatch만 추가한다. 새 loss가
+- 12개 wrapper 각각에 대해 생성, 1 epoch 학습, checkpoint 평가, 예측 CSV 생성을 확인한다.
+- 각 방법론의 preprocessor, raw output, postprocessor shape와 표준 코너 규약을 검증한다.
+- `line`은 dense line target, center/displacement loss, 직선 그룹화 threshold를 우선 점검하고
+  validation IoU와 Success Rate가 함께 개선되는지 확인한다.
+- 새 구조를 추가할 때는 전용 4파일과 `factory.get_wrapper()` dispatch를 함께 갱신한다. 새 loss가
   필요하면 `src/losses/`에 의미 기반 `BaseLoss` 하위 클래스로 추가한다.
 - 방법론 전용 보조 연산은 해당 방법론 폴더에 두고, 둘 이상의 방법론에서 재사용될 때만
   `src/utils/`로 승격한다.
@@ -68,8 +85,8 @@ $\to$ `foundation` $\to$ `line` $\to$ `torchseg` $\to$ `torchdet`
 
 ### Phase 3 - 전체 비교 평가
 
-- 12개 방법론 구현이 모두 끝나면 동일한 데이터 분할, 입력 해상도, 평가 조건 및
-  체크포인트 선택 기준으로 benchmark를 수행한다.
+- 동일한 데이터 분할, 입력 해상도, 평가 조건 및 checkpoint 선택 기준으로 12개 방법론을
+  benchmark한다.
 - 비교 결과에는 Polygon IoU, MCD, MaxCD, Reprojection Error, PCK, Success Rate,
   추론 지연, 모델 크기를 포함한다.
 - 정량 결과와 실패 사례 시각화를 비교 산출물로 남긴다.
@@ -80,5 +97,5 @@ $\to$ `foundation` $\to$ `line` $\to$ `torchseg` $\to$ `torchdet`
 2. 전처리, 모델, 후처리의 입출력 형태와 공통 loss, metric 연동이 확인된다.
 3. 제한된 실제 데이터로 1 epoch 학습, 체크포인트 평가, 예측 CSV 생성이 수행된다.
 4. 예측 좌표가 표준 스키마와 코너 유효성 규칙을 만족하는지 확인한다.
-5. 공통 계층을 변경한 경우 이미 구현된 8개 방법론의 import, wrapper 생성, 예측 경로를
+5. 공통 계층을 변경한 경우 12개 방법론의 import, wrapper 생성, 예측 경로를
    회귀 검증한다.

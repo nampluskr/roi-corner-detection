@@ -1,4 +1,4 @@
-# CLAUDE.md
+# Project Instructions
 
 이 파일은 `roi-corner-detection` 프로젝트에서 작업할 때 따르는 공통 지침이다.
 
@@ -192,7 +192,7 @@ src/
 
 | 명칭 | 경로 | 참조 목적 |
 |---|---|---|
-| **레거시 프로젝트** (legacy 프로젝트) | `../../99_deprecated/260622_roi-direct-regression` | 도메인 로직 참조 - 코너 기하 연산, 데이터 파이프라인, 방법론 설계(A-J), 통합 계획 |
+| **레거시 프로젝트** (legacy 프로젝트) | `../260622_roi-corner-detection-ver0` | 도메인 로직 참조 - 코너 기하 연산, 데이터 파이프라인, 방법론 설계(A-J), 통합 계획 |
 | **MNIST 프로젝트** | `../260626_mnist-from-scratch` | 구조/컨벤션 참조 - 폴더 구조, SSOT README/CLAUDE.md 작성 방식, 코딩 규칙 |
 
 레거시 프로젝트 세부 참조 경로:

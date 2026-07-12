@@ -1,6 +1,6 @@
 # docs-plan: 방법론 상세 보고서 작성 계획
 
-이 문서는 `docs/` 폴더에 작성할 12개 방법론 상세 보고서의 문서명, 섹션 수준 목차,
+이 문서는 `docs/` 폴더에 작성할 13개 방법론 상세 보고서의 문서명, 섹션 수준 목차,
 공통 템플릿을 정의한다. 실제 문서 작성 시 이 계획을 따르고, 작성 완료 시 아래
 체크리스트를 갱신한다. 방법론 개요와 구현 순서는 `common/roi-corner-detection-models.md`,
 제약 F1-F8과 모듈 시그니처는 `README.md`(SSOT)를 참조한다.
@@ -24,6 +24,7 @@
 | 10 | `line` | `models/10_line-intersection.md` | [x] |
 | 11 | `torchseg` | `models/11_torchvision-segmentation.md` | [x] |
 | 12 | `torchdet` | `models/12_torchvision-detection.md` | [x] |
+| 13 | `yolo` | `models/13_ultralytics-yolo-detection.md` | [x] |
 
 방법론별 보고서 외에 다음 공통 문서를 `docs/common/`에 둔다. 공통 문서는 넘버링을 적용하지 않는다.
 
@@ -34,7 +35,7 @@
 | `common/roi-corner-detection-implementation-order.md` | 나머지 9개 방법론 구현 착수 순서 분석 (난이도/속도 기준 재정렬 + 절충안) | [x] |
 | `common/roi-corner-detection-loss-functions.md` | 7개 공통 손실 함수의 수식, gradient 특성, 다중 손실 결합과 방법론별 적용 | [x] |
 | `common/roi-corner-detection-metrics.md` | 평가 메트릭 상세 (Polygon IoU, MCD, MaxCD, Reprojection Error) | [x] |
-| `common/roi-corner-detection-models.md` | 12개 방법론 비교 (표 + 방법론별 요약 + F1-F8 매핑) | [x] |
+| `common/roi-corner-detection-models.md` | 13개 방법론 비교 (표 + 방법론별 요약 + F1-F8 매핑) | [x] |
 | `common/roi-corner-detection-spatial-information.md` | 특징 맵의 공간 정보, GAP 손실 원리, 공간 보존 구조와 방법론별 분석 | [x] |
 | `common/roi-corner-detection-warmup-training.md` | backbone 동결 warmup, 자동 해제, 차등 학습률과 Wrapper 구현 | [x] |
 
@@ -123,5 +124,5 @@
   먼저 갱신한 뒤 보고서를 작성한다.
 - 문서 간 중복 서술을 피한다. 방법론 간 비교는 `common/roi-corner-detection-models.md`가
   담당하고, 각 보고서는 해당 방법론의 상세만 다룬다.
-- 작성 순서는 구현 순서(1 $\to$ 10)를 따르되, 해당 방법론의 구현 Phase 완료 후 작성을
-  원칙으로 한다 (PLAN.md Phase 참조).
+- 작성 순서는 구현 순서(1 $\to$ 13)를 따른다. 일반적으로 해당 방법론의 구현 Phase 완료 후
+  작성하며, `yolo` 문서는 사용자 요청에 따라 구현 전에 적용 설계와 설치 절을 먼저 작성한다.
